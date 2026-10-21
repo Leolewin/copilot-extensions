@@ -7,7 +7,7 @@ exclude-newer = "7 days"
 
 [project]
 name = "agent-worktrees"
-version = "1.24.150-dev1"
+version = "1.24.151-dev1"
 description = "Worktree isolation system for concurrent Copilot CLI sessions"
 readme = "README.md"
 license = "MIT"
