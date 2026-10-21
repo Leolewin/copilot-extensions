@@ -54,6 +54,11 @@ The child also observes C-call starts through a monitored process/thread
 profile hook. Both `_thread.start_new_thread` and the distinct
 `_thread.start_new` original identities are retained before patching and checked
 in the parent and child guards, including aliases captured before activation.
+Calls into the original Python `threading.settrace` and `setprofile`
+implementations are matched by code and module globals before mutation, so a
+cached setter cannot remove a worker hook, run unobserved work and hide the
+change by restoring it later. The same code in unrelated globals does not
+modify those hooks and is not treated as a setter call.
 Removing either profile hook invalidates collection even if later restored.
 Prior callable diagnostic profiles are chained, and import-profile reporting
 stops only that diagnostic callback rather than removing the coverage guard.

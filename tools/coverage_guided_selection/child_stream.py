@@ -34,6 +34,10 @@ _thread_guard_active = False
 _start_thread_original = _thread.start_new_thread
 _start_thread_alias_original = _thread.start_new
 _thread_start_code = threading.Thread.start.__code__
+_thread_settrace_code = threading.settrace.__code__
+_thread_setprofile_code = threading.setprofile.__code__
+_thread_settrace_globals = threading.settrace.__globals__
+_thread_setprofile_globals = threading.setprofile.__globals__
 _profile_arming = False
 _profile_owner = None
 _prior_profile = _prior_thread_profile = None
@@ -196,6 +200,15 @@ def _thread_profile(frame, event, arg):
     if event == "c_call" and (arg is _start_thread_original or arg is _start_thread_alias_original):
         if frame.f_code not in (_thread_start_code, _start_thread.__code__):
             _auditor().error("unsupported low-level thread coverage lifecycle")
+    elif event == "call" and _started:
+        if (frame.f_code is _thread_settrace_code and not _arming
+                and frame.f_globals is _thread_settrace_globals
+                and frame.f_locals.get(_thread_settrace_code.co_varnames[0]) is not _call):
+            _auditor().error("child thread tracer was replaced")
+        if (frame.f_code is _thread_setprofile_code and not _profile_arming
+                and frame.f_globals is _thread_setprofile_globals
+                and frame.f_locals.get(_thread_setprofile_code.co_varnames[0]) is not _thread_profile):
+            _auditor().error("child thread-start profile guard was replaced")
     if _prior_profile is not None or _prior_thread_profile is not None:
         previous = _prior_profile if threading.get_ident() == _profile_owner else _prior_thread_profile
         if previous is not None:

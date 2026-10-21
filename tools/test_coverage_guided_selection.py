@@ -72,6 +72,7 @@ from tools.test_child_stream import (  # noqa: E402,F401
     test_generated_audit_guard_preserves_native_first_main_execution,
     test_low_level_thread_refusal_preserves_call_and_catches_cached_parent_alias,
     test_cached_native_thread_starters_refuse_untraced_workers,
+    test_cached_thread_setters_cannot_hide_remove_run_restore,
     test_child_thread_profile_preserves_then_stops_only_prior_diagnostic_callbacks,
     test_generated_guard_recursion_state_is_thread_local,
     test_real_timestamp_valid_bytecode_is_bound_to_executed_source,

@@ -260,6 +260,77 @@ def test_cached_native_thread_starters_refuse_untraced_workers(monkeypatch, prof
     assert failures == ["unsupported low-level thread coverage lifecycle"]
 
 
+@pytest.mark.parametrize("profile", ["parent", "child"])
+@pytest.mark.parametrize("hook", ["trace", "profile"])
+@pytest.mark.parametrize("foreign_globals", [False, True])
+def test_cached_thread_setters_cannot_hide_remove_run_restore(monkeypatch, profile, hook, foreign_globals):
+    import sys
+    from types import FunctionType, SimpleNamespace
+
+    failures, observed, refused_hooks = [], [], []
+    guard = stream._profile if profile == "parent" else runtime._thread_profile
+    originals = {"trace": threading.settrace, "profile": threading.setprofile}
+    previous = {"trace": threading.gettrace(), "profile": threading.getprofile()}
+    required = {"trace": runtime._call, "profile": guard}
+    cached = originals[hook]
+    assert cached.__code__ is getattr(runtime, "_thread_set" + hook + "_code")
+    if foreign_globals:
+        cached = FunctionType(cached.__code__, dict(cached.__globals__))
+    for name, value in (
+        ("_started", profile == "child"), ("_arming", False), ("_profile_arming", True),
+        ("_prior_profile", None), ("_prior_thread_profile", None),
+    ):
+        monkeypatch.setattr(runtime, name, value)
+    for name, value in (
+        ("_guard_active", profile == "parent"), ("_guard_arming", True),
+        ("_tracing", profile == "parent"), ("_parent_thread_trace", required["trace"]),
+    ):
+        monkeypatch.setattr(stream, name, value)
+    def refused(reason):
+        failures.append(reason)
+        refused_hooks.append(getattr(threading, "get" + hook)())
+    monkeypatch.setattr(runtime, "_auditor", lambda: SimpleNamespace(error=refused))
+    monkeypatch.setattr(stream, "_auditor", lambda: SimpleNamespace(error=refused))
+    monkeypatch.setattr(runtime, "_frame_source", lambda frame: None)
+    def wrapped(function):
+        pytest.fail("cached setter must bypass the replacement attribute")
+    monkeypatch.setattr(threading, "set" + hook, wrapped)
+    originals["trace"](required["trace"])
+    originals["profile"](required["profile"])
+    process_profile = sys.getprofile()
+    worker = threading.Thread(target=lambda: observed.append((sys.gettrace(), sys.getprofile())))
+    try:
+        sys.setprofile(guard)
+        monkeypatch.setattr(runtime, "_profile_arming", False)
+        monkeypatch.setattr(stream, "_guard_arming", False)
+        cached(None)
+        worker.start()
+        worker.join(5)
+        cached(required[hook])
+    finally:
+        monkeypatch.setattr(runtime, "_profile_arming", True)
+        monkeypatch.setattr(stream, "_guard_arming", True)
+        sys.setprofile(process_profile)
+        originals["trace"](previous["trace"])
+        originals["profile"](previous["profile"])
+        if worker.ident is not None:
+            worker.join(5)
+    assert not worker.is_alive()
+    if foreign_globals:
+        assert observed == [(required["trace"], guard)]
+        assert not failures and not refused_hooks
+        return
+    assert observed == [(None, guard) if hook == "trace" else (required["trace"], None)]
+    reason = {
+        ("parent", "trace"): "parent thread line tracer was replaced",
+        ("parent", "profile"): "parent thread executable-source guard was replaced",
+        ("child", "trace"): "child thread tracer was replaced",
+        ("child", "profile"): "child thread-start profile guard was replaced",
+    }[profile, hook]
+    assert failures == [reason]
+    assert refused_hooks == [required[hook]]
+
+
 def test_child_thread_profile_preserves_then_stops_only_prior_diagnostic_callbacks(monkeypatch):
     calls = []
     monkeypatch.setattr(runtime, "_profile_owner", 1)
@@ -383,6 +454,10 @@ def test_generated_audit_guard_preserves_native_first_main_execution(tmp_path):
     ("parent", False, "", "cached-low-level-alias"),
     ("child", False, "", "cached-low-level"),
     ("child", False, "", "cached-low-level-alias"),
+    ("parent", False, "", "cached-trace-removal"),
+    ("child", False, "", "cached-trace-removal"),
+    ("parent", False, "", "cached-profile-removal"),
+    ("child", False, "", "cached-profile-removal"),
     ("child", False, "", "profile-removal"),
     ("child", False, "", "thread-profile-removal"),
     ("parent", False, "", "concurrent-generation"),
@@ -448,6 +523,9 @@ def test_real_timestamp_valid_bytecode_is_bound_to_executed_source(
         f"import _thread\n_thread._cgs_test_cached_start=_thread.{native_starter}\n"
         if location == "parent" and thread_mode in {"cached-low-level", "cached-low-level-alias"} else ""
     )
+    if location == "parent" and thread_mode in {"cached-trace-removal", "cached-profile-removal"}:
+        hook = "trace" if thread_mode == "cached-trace-removal" else "profile"
+        capture = f"import threading\nthreading._cgs_test_cached_set{hook}=threading.set{hook}\n"
     driver.write_text(capture + standalone._DRIVER_SCRIPT, encoding="utf-8")
     if thread_mode == "normal":
         consumer = (
@@ -491,16 +569,21 @@ def test_real_timestamp_valid_bytecode_is_bound_to_executed_source(
             " assert runtime._code_sources[id(code)][0] is code\n"
             "observed=22\n"
         )
-    elif thread_mode == "temporary-removal":
-        hook = "profile" if location == "parent" else "trace"
+    elif thread_mode in {"temporary-removal", "cached-trace-removal", "cached-profile-removal"}:
+        hook = ("profile" if location == "parent" else "trace") if thread_mode == "temporary-removal" else (
+            "trace" if thread_mode == "cached-trace-removal" else "profile"
+        )
+        setter = f"threading.set{hook}" if thread_mode == "temporary-removal" else (
+            f"threading._cgs_test_cached_set{hook}" if location == "parent" else f"pre_captured_set{hook}"
+        )
         consumer = (
             "import importlib,threading\nvalues=[]\n"
-            f"original=threading.get{hook}();threading.set{hook}(None)\n"
+            f"original=threading.get{hook}();{setter}(None)\n"
             "try:\n"
             " thread=threading.Thread(target=lambda: values.append("
             "importlib.import_module('fixture_package.source').value()))\n"
             " thread.start();thread.join()\n"
-            f"finally: threading.set{hook}(original)\n"
+            f"finally: {setter}(original)\n"
             "observed=values[0]\n"
         )
     elif thread_mode in {
@@ -550,6 +633,7 @@ def test_real_timestamp_valid_bytecode_is_bound_to_executed_source(
         consumer = f"import runpy\nobserved=runpy.run_path({str(shadow)!r},run_name='__main__')['value']()\n"
     child_program = (
         f"import sys,_thread,threading;pre_captured_start=_thread.{native_starter};"
+        "pre_captured_settrace=threading.settrace;pre_captured_setprofile=threading.setprofile;"
         f"sys.path[:0]=[{str(tmp_path)!r},{str(sandbox)!r}];"
         "import _cgs_child_audit,_cgs_child_stream;"
         f"_cgs_child_stream.start({options['child_stream_control']!r});"
@@ -600,6 +684,8 @@ def test_real_timestamp_valid_bytecode_is_bound_to_executed_source(
         errors = [json.loads(path.read_text()) for path in
                   (sandbox / "child-lines" / "audit").glob("*.error")]
         reason = ("executed code differs" if thread_mode == "normal" else
+                  "tracer was replaced" if thread_mode == "cached-trace-removal" else
+                  "guard was replaced" if thread_mode == "cached-profile-removal" else
                   "guard was replaced" if thread_mode == "temporary-removal" and location == "parent" else
                   "tracer was replaced" if thread_mode == "temporary-removal" else
                   "unsupported low-level thread" if thread_mode in {

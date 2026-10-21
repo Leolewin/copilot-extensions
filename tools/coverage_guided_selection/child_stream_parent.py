@@ -279,6 +279,14 @@ def configure_parent(control, python, nonce, inventory, helpers):
 
 def _profile(frame, event, arg):
     if event == "call":
+        if (_tracing and frame.f_code is _runtime._thread_settrace_code
+                and frame.f_globals is _runtime._thread_settrace_globals
+                and frame.f_locals.get(_runtime._thread_settrace_code.co_varnames[0]) is not _parent_thread_trace):
+            _auditor().error("parent thread line tracer was replaced")
+        if (_guard_active and not _guard_arming and frame.f_code is _runtime._thread_setprofile_code
+                and frame.f_globals is _runtime._thread_setprofile_globals
+                and frame.f_locals.get(_runtime._thread_setprofile_code.co_varnames[0]) is not _profile):
+            _auditor().error("parent thread executable-source guard was replaced")
         _runtime._frame_source(frame)
     elif event == "c_call" and (
         arg is _runtime._start_thread_original or arg is _runtime._start_thread_alias_original
