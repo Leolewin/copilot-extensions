@@ -1,5 +1,7 @@
 # CI/CD Pipelines
 
+<!-- Validation-only narrative change for the combined CI unit-job skip path. -->
+
 This is the mechanical reference for how a change actually moves through
 this repo: the automated gates a pull request passes before it merges to
 `dev`, how `dev` promotes to `main`, how to preview a pending release
