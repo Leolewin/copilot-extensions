@@ -8,8 +8,13 @@ Set-StrictMode -Version Latest
 
 function Find-OwnedTask($Folder, $Config) {
     try { $task = $Folder.GetTask($Config.task_name) }
+    catch [System.IO.FileNotFoundException] { return $null }
     catch [Runtime.InteropServices.COMException] {
-        if ($_.Exception.HResult -eq -2147024894) { return $null }
+        $error = $_.Exception
+        while ($null -ne $error) {
+            if ($error.HResult -eq -2147024894) { return $null }
+            $error = $error.InnerException
+        }
         throw
     }
     $definition = $task.Definition

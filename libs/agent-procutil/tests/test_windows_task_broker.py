@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -11,6 +12,7 @@ from zdd.private_protocol import PeerIdentity
 
 from agent_procutil import DaemonSpawnError
 from agent_procutil import windows_task_broker as task
+from agent_procutil.owned_process import run_caller_owned
 
 
 def registration(**overrides):
@@ -221,3 +223,51 @@ def test_packaged_scheduler_adapter_is_declared():
     assert manifest["project"]["optional-dependencies"]["windows-broker"] == [
         "agent-zdd>=0.1.0.dev7; sys_platform == 'win32'",
     ]
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Native Windows PowerShell exception mapping")
+@pytest.mark.parametrize("missing", [False, True])
+def test_first_adoption_distinguishes_missing_task_from_access_failure(missing):
+    # Execute only the parsed lookup function with a synthetic folder. No COM
+    # connection, registration, activation or host task is needed by this test.
+    command = r"""
+$ErrorActionPreference = 'Stop'
+$path = [Console]::In.ReadToEnd()
+$tokens = $null
+$errors = $null
+$ast = [Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
+if ($errors) { throw 'fixture parse failed' }
+$function = $ast.Find({
+    param($node)
+    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+        $node.Name -eq 'Find-OwnedTask'
+}, $true)
+. ([scriptblock]::Create($function.Extent.Text))
+Add-Type 'public sealed class SyntheticTaskFolder {
+    public object GetTask(string name) {
+        throw new EXCEPTION_TYPE("synthetic lookup failure");
+    }
+}'
+$folder = New-Object SyntheticTaskFolder
+try {
+    $value = Find-OwnedTask $folder ([pscustomobject]@{task_name='synthetic'})
+    if ($null -ne $value) { throw 'unexpected task' }
+    [Console]::Out.Write('missing')
+} catch [System.UnauthorizedAccessException] {
+    [Console]::Out.Write('refused')
+}
+"""
+    command = command.replace(
+        "EXCEPTION_TYPE",
+        "System.IO.FileNotFoundException" if missing else "System.UnauthorizedAccessException",
+    )
+    powershell = Path(os.environ["SystemRoot"]) / (
+        r"System32\WindowsPowerShell\v1.0\powershell.exe"
+    )
+    result = run_caller_owned(
+        [str(powershell), "-NoProfile", "-NonInteractive", "-Command", command],
+        input_text=str(Path(task.__file__).with_name("windows_broker_task.ps1")),
+        timeout=15, max_stdout_bytes=65536, max_stderr_bytes=65536,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == ("missing" if missing else "refused")
