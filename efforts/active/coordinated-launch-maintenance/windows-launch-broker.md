@@ -137,7 +137,7 @@ CI/promotion enforcement remain the separate parent gate.
 ## Implementation and validation gates
 
 - [x] Land this amended contract through ordinary review before broker code.
-- [ ] Complete the other #6859 review corrections: enforce census deadlines
+- [x] Complete the other #6859 review corrections: enforce census deadlines
   during work, retain retryable descendant/Job handles after unconfirmed exit,
   and make synthetic PID fixtures independent of the runner PID.
 - [ ] Implement the canonical broker protocol and owning installer integration;

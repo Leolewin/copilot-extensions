@@ -415,3 +415,51 @@ repository history.
   checks, not the unproved immediate-Job inference. The three other retirement
   corrections and the probe passed the unchanged full contained runner:
   476 tests passed, 30 explicit platform/lifetime skips, with sandbox retirement.
+
+### 2026-10-22 - Implement finite native transaction before normal-launch adoption
+
+- Added the finite transaction, actual native handle duplication and an explicit
+  consumer-owned registration/lifecycle adapter in the held repair source.
+  Reused the canonical private Windows transport rather than introduce another
+  secrets-bearing channel. It is an optional library capability, not a sibling
+  plugin dependency or an automatic installer.
+- The client authenticates the scheduler instance and native pipe process
+  before sending live launch data. It adopts actual child control before resume;
+  the child must be outside every Job. The finite broker stays alive through
+  final commit and client pipe closure. Failed retirement retains retryable
+  custody and refuses more work rather than silently permitting a duplicate.
+- Contained protocol, adoption, framing, custody and existing process regressions
+  passed: 637 tests, 31 explicit platform/lifetime skips, including canonical
+  sandbox retirement. Lint, native PowerShell parsing, thirteen installer
+  contracts, source-vendoring checks, headless guard and trusted workflow policy
+  passed. The workflow-policy check used the existing YAML-capable test
+  environment after the process-only environment explicitly lacked that tool.
+- Extended only the already-authorized disposable Windows probe lane to exercise
+  the production protocol through synthetic registration, nested caller-Job
+  closure, exact resident arguments/environment/logs and native cleanup twice.
+  That lane has not yet run against this candidate, so these are not native
+  qualification results.
+- Normal launches still use the old fallback pending cohesive replacement.
+  Installer health-gated adoption/update/rollback, scope propagation, actual
+  caller-Job negative topology, full desktop visibility, native POSIX and the
+  containing maintenance consumers remain open. This is not a completed #6859
+  repair, a source merge, promotion or host deployment.
+
+### 2026-10-22 - First-touch native qualification exposes task lookup mapping
+
+- Exact-head run
+  [39860195613](https://github.com/ThomasMichon/copilot-extensions/actions/runs/39860195613)
+  executed the real Windows step. Its preliminary capability probe passed, but
+  the production-protocol fixture failed during first adoption; it completed no
+  resident cycles and did not claim cleanup or qualification.
+- A missing task can surface as `System.IO.FileNotFoundException`, rather than
+  only a COM exception. Corrected that exact missing-object case without
+  treating denied or unknown lookups as absence. The native Windows PowerShell
+  regression executes the actual lookup function against synthetic CLR methods;
+  missing and access-denied cases both passed without connecting to or modifying
+  Task Scheduler. The composed adoption suite passed 24 tests.
+- Published the correction on the held repair draft and dispatched only the
+  authorized disposable lane again in
+  [39862177885](https://github.com/ThomasMichon/copilot-extensions/actions/runs/39862177885),
+  exact source `186c0e3003231c7a22692f1bdbf36ae41ac5c5e1`.
+  That result remains pending here; a retry dispatch is not a passing result.
