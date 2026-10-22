@@ -176,8 +176,21 @@ def test_fixed_activation_phases_do_not_hide_native_refusal(monkeypatch):
     monkeypatch.setattr(task, "run_caller_owned", Mock(return_value=subprocess.CompletedProcess(
         ["safe-command"], 1, "", "broker-phase:run-requested\nbroker-activation-deadline\n",
     )))
-    with pytest.raises(DaemonSpawnError, match="broker-activation-deadline"):
+    with pytest.raises(DaemonSpawnError, match="broker-activation-deadline") as caught:
         task.task_operation("activate", registration(), Deadline(30))
+    assert "phase=run-requested" in str(caught.value)
+
+
+def test_nonzero_adapter_failure_discloses_phase_without_native_exception_text(monkeypatch):
+    monkeypatch.setattr(task, "os", SimpleNamespace(name="nt", environ={"SystemRoot": r"C:\Windows"}))
+    monkeypatch.setattr(task.Registration, "validate_files", lambda config: None)
+    monkeypatch.setattr(task, "run_caller_owned", Mock(return_value=subprocess.CompletedProcess(
+        ["safe-command"], 1, "", "broker-phase:run-returned\nprivate-value\n",
+    )))
+    with pytest.raises(DaemonSpawnError, match="scheduler-operation-failed") as caught:
+        task.task_operation("activate", registration(), Deadline(30))
+    assert "phase=run-returned" in str(caught.value)
+    assert "private-value" not in str(caught.value)
 
 
 def spawn_fixture(monkeypatch, activation=None):

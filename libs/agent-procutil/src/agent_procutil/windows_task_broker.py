@@ -36,6 +36,17 @@ _ACTIVATION_PHASES = frozenset({
 })
 
 
+def _activation_phase(stderr: bytes | str | None) -> str:
+    phase = "unobserved"
+    for line in (stderr or b"").splitlines():
+        for candidate in _ACTIVATION_PHASES:
+            marker = "broker-phase:" + candidate
+            if line == (marker.encode("ascii") if isinstance(line, bytes) else marker):
+                phase = candidate
+                break
+    return phase
+
+
 @dataclass(frozen=True)
 class Registration:
     """Non-secret installation metadata, never child argv or credentials."""
@@ -164,12 +175,7 @@ def task_operation(
             input_text=json.dumps({"config": config.task(), **metadata}, ensure_ascii=True),
         )
     except subprocess.TimeoutExpired as error:
-        phase = "unobserved"
-        for line in (error.stderr or b"").splitlines():
-            for candidate in _ACTIVATION_PHASES:
-                if line == ("broker-phase:" + candidate).encode("ascii"):
-                    phase = candidate
-                    break
+        phase = _activation_phase(error.stderr)
         raise _refuse("task " + action + " timed out (phase=" + phase + ")") from None
     if result.returncode != 0:
         reason = "\n".join(
@@ -184,7 +190,8 @@ def task_operation(
             "broker-registration-rollback-unconfirmed",
         }
         reason = reason if reason in allowed else "scheduler-operation-failed"
-        raise _refuse("task " + action + " refused (" + reason + ")")
+        phase = _activation_phase(result.stderr)
+        raise _refuse("task " + action + " refused (" + reason + "; phase=" + phase + ")")
     try:
         value = json.loads(result.stdout)
     except (ValueError, TypeError):
