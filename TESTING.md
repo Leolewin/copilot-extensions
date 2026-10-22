@@ -9,6 +9,11 @@ How to run the plugin test suites, the fast gates to run before a push, and the
 
 ## Native file-link prerequisites
 
+`tools/test_dependency_uv_executable_native.py` qualifies both absolute and
+named Windows UV commands through real guarded SDK/Python-owned installs.
+Named controls use an owned child's fixture-only PATH; external `*-system`
+qualification retains the target's actual PATH and verifies it is unchanged.
+
 Repository-tool installer-sync and vendor-guard link controls use the shared
 `native_file_symlink` fixture. Only Windows error 1314, raised by actual file-link
 creation, produces an explicit missing-privilege skip; other failures propagate.
@@ -279,6 +284,25 @@ failure and cancellation paths; cleanup failures are explicit. Unverified
 process teardown retains the current sandbox, even if an earlier group's
 cleanup also failed. The process, storage and per-item/group limits are unchanged.
 These focused runner contracts do not qualify a complete suite's timing budget.
+
+Bridge's generated Windows management and payload launchers have a focused
+binary/prompt smoke in `tests/test_payload_invocation.py`. The full native
+matrix is explicit T3, preserving the default fast portfolio:
+
+```text
+python tools/run-plugin-tests.py agent-bridge --allow-explicit-tiers --test-file tests/test_payload_invocation.py --test-file tests/test_carrier_stdio.py
+```
+
+It compares actual generated direct-PS1 and retained CMD bodies on PowerShell 7
+and Windows PowerShell 5.1, with real selected-runtime resolution, arbitrary
+binary frame boundaries, held-open stdin, clean EOF, separated streams and exit
+codes. The staged runtime also executes the real carrier protocol. A strict
+caller-owned Windows Job proves cancellation retires a pinned live descendant.
+Fixtures never install into the operator's runtime or contact a live peer.
+The Windows PowerShell 5.1 native prompt case uses its encoded command boundary:
+that host rejects the standalone `-` argument before executing a `-File` script.
+Only the fixture-owned command/arguments are encoded; the quoted multiline
+prompt remains raw stdin. Framed carrier cases still exercise `-File` directly.
 
 The source and candidate Linux full-suite declarations use exactly two
 work-stealing pytest workers for Worktrees only. Both workers remain inside the
