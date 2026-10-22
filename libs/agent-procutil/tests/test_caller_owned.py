@@ -138,6 +138,52 @@ def test_windows_timeout_after_stream_eof_retains_raw_bytes():
     assert "phase" not in str(caught.value)
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows PowerShell nested live stdin contract")
+def test_nested_powershell_json_input_reaches_eof_while_outer_stdin_stays_open(tmp_path):
+    from agent_procutil import spawn_sync_in_kill_on_close_job
+
+    powershell = Path(os.environ["SystemRoot"]) / r"System32\WindowsPowerShell\v1.0\powershell.exe"
+    source = str(Path(ownership.__file__).resolve().parents[1])
+    request = json.dumps({"config": {"value": "x" * 1000}})
+    script = tmp_path / "reader.ps1"
+    script.write_text(
+        "[Console]::Error.WriteLine('input');"
+        "$v=[Console]::In.ReadToEnd()|ConvertFrom-Json;"
+        "[Console]::Out.Write($v.config.value.Length)",
+        encoding="utf-8",
+    )
+    code = (
+        f"import sys;sys.path.insert(0,{source!r});"
+        "from agent_procutil.owned_process import run_caller_owned;"
+        "assert sys.stdin.readline()=='launch\\n';"
+        f"r=run_caller_owned([{str(powershell)!r},'-NoProfile','-NonInteractive','-File',"
+        f"{str(script)!r}],"
+        f"input_text={request!r},timeout=5,max_stdout_bytes=4096,max_stderr_bytes=4096);"
+        "assert r.returncode==0,r.stderr;print(r.stdout,flush=True)"
+    )
+    env = {
+        key: value for key, value in os.environ.items()
+        if key.upper() in {"SYSTEMROOT", "WINDIR", "TEMP", "TMP", "PATH", "COMSPEC"}
+    }
+    process, job = spawn_sync_in_kill_on_close_job(
+        [sys.executable, "-I", "-c", code], env=env,
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        require_job=True, allow_breakaway=False, text=True, encoding="utf-8",
+        creationflags=0x08000000,
+    )
+    try:
+        process.stdin.write("launch\n")
+        process.stdin.flush()
+        process.wait(timeout=10)
+        assert process.returncode == 0, process.stderr.read()
+        assert process.stdout.read().strip() == "1000"
+    finally:
+        job.terminate_and_wait(2)
+        process.wait(timeout=2)
+        for stream in (process.stdin, process.stdout, process.stderr):
+            stream.close()
+
+
 @native_execution
 def test_child_closing_stdin_early_preserves_result():
     result = _run(

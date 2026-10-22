@@ -8,7 +8,7 @@ Set-StrictMode -Version Latest
 
 function Write-ActivationPhase(
     [ValidateSet(
-        'input', 'principal', 'connect', 'folder', 'lookup', 'validated',
+        'input', 'input-read', 'principal', 'connect', 'folder', 'lookup', 'validated',
         'run-requested', 'run-returned', 'engine-ready', 'revalidated',
         'process', 'birth', 'response'
     )]
@@ -78,7 +78,9 @@ $rollbackXml = $null
 $newRegistration = $false
 try {
     Write-ActivationPhase 'input'
-    $inputValue = [Console]::In.ReadToEnd() | ConvertFrom-Json
+    $inputJson = [Console]::In.ReadToEnd()
+    Write-ActivationPhase 'input-read'
+    $inputValue = $inputJson | ConvertFrom-Json
     $c = $inputValue.config
     Write-ActivationPhase 'principal'
     $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value

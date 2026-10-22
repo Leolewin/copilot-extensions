@@ -30,7 +30,7 @@ OWNER_ENV = "AGENT_PROCUTIL_WINDOWS_BROKER_OWNER"
 _SCHEMA = "agent-procutil.windows-launch-broker"
 _NONCE = re.compile(r"[0-9a-f]{64}")
 _ACTIVATION_PHASES = frozenset({
-    "input", "principal", "connect", "folder", "lookup", "validated",
+    "input", "input-read", "principal", "connect", "folder", "lookup", "validated",
     "run-requested", "run-returned", "engine-ready", "revalidated",
     "process", "birth", "response",
 })
