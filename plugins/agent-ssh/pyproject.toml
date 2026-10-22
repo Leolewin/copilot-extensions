@@ -7,7 +7,7 @@ exclude-newer = "7 days"
 
 [project]
 name = "agent-ssh"
-version = "0.1.93-dev1"
+version = "0.1.94-dev1"
 description = "SSH profile emitter, verifier, and transport-provider contract for the agent fabric"
 readme = "README.md"
 license = "MIT"
@@ -25,9 +25,11 @@ dependencies = [
     "agent-remote-login-shell",
     "agent-fleet-contracts",
     "agent-machine-transport",
+    "agent-plugin-resolve",
 ]
 
 [tool.uv.sources]
+agent-plugin-resolve = { path = "libs/plugin-resolve" }
 agent-machine-transport = { path = "libs/machine-transport" }
 agent-fleet-contracts = { path = "libs/fleet-contracts" }
 # Shared Windows-headless / detached process-spawn kwargs. This is a
