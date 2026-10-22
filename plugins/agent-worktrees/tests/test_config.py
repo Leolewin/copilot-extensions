@@ -29,6 +29,56 @@ def _isolate_config_layers(tmp_path_factory, monkeypatch):
         repos_mod, "read_registry", lambda: repos_mod.ReposRegistry()
     )
 
+@pytest.mark.parametrize(
+    "loader", [cfg.yaml.SafeLoader, getattr(cfg.yaml, "CSafeLoader", cfg.yaml.SafeLoader)],
+    ids=["python", "accelerated"],
+)
+def test_safe_config_loader_revalidates_files_and_preserves_yaml(tmp_path, monkeypatch, loader):
+    calls = []
+
+    class ObservedLoader(loader):
+        def __init__(self, stream):
+            calls.append(stream.name)
+            super().__init__(stream)
+
+    monkeypatch.setattr(cfg, "_YamlSafeLoader", ObservedLoader)
+    path = tmp_path / "config.yaml"
+    path.write_text(
+        'defaults: &defaults {name: "Caf\u00e9", enabled: true}\n'
+        'project: {<<: *defaults, "quoted:key": "value"}\n',
+        encoding="utf-8",
+    )
+    assert cfg._load_yaml_safe(path) == {
+        "defaults": {"name": "Caf\u00e9", "enabled": True},
+        "project": {"name": "Caf\u00e9", "enabled": True, "quoted:key": "value"},
+    }
+    path.write_text("project: {name: changed}\n", encoding="utf-8")
+    assert cfg._load_yaml_safe(path) == {"project": {"name": "changed"}}
+    for text in (
+        "defaults: [\n",
+        "!!python/object/apply:builtins.dict\n- [[accepted, unsafe]]\n",
+        "- ignored\n",
+        "42\n",
+        "plain text\n",
+        "",
+    ):
+        path.write_text(text, encoding="utf-8")
+        assert cfg._load_yaml_safe(path) == {}
+    real_open = open
+
+    def unreadable(file, *args, **kwargs):
+        if Path(file) == path:
+            raise PermissionError("config read denied")
+        return real_open(file, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr("builtins.open", unreadable)
+        assert cfg._load_yaml_safe(path) == {}
+    path.unlink()
+    assert cfg._load_yaml_safe(path) == {}
+    assert calls == [str(path)] * 8
+
+
 # ---------------------------------------------------------------------------
 # detect_platform
 # ---------------------------------------------------------------------------
@@ -1624,6 +1674,145 @@ class TestInRepoConfigCommittedRefResolution:
              "-c", "init.defaultBranch=main", *args],
             cwd=str(cwd), capture_output=True, text=True, check=True,
         )
+
+    def _empty_committed_anchor(self, anchor: Path):
+        self._git("init", "--template=", "-b", "main", cwd=anchor)
+        self._git("commit", "--allow-empty", "-m", "initial", cwd=anchor)
+        self._git("update-ref", "refs/remotes/origin/main", "HEAD", cwd=anchor)
+        self._git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main", cwd=anchor)
+
+    def test_absent_candidates_use_one_fresh_presence_probe(self, tmp_path, monkeypatch):
+        from agent_worktrees import git_ops
+
+        self._empty_committed_anchor(tmp_path)
+        original, calls = git_ops.git, []
+
+        def observed(*args, **kwargs):
+            calls.append(args)
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(git_ops, "git", observed)
+        assert self._resolve(tmp_path) == {}
+        assert len(calls) == 2
+        assert calls[1][:4] == ("--literal-pathspecs", "ls-tree", "-z", "--full-tree")
+        path = cfg.inrepo_config_path(tmp_path)
+        path.parent.mkdir(parents=True)
+        path.write_text("marker: newly-committed\n", encoding="utf-8")
+        self._git("add", "-A", cwd=tmp_path)
+        self._git("commit", "-m", "add config", cwd=tmp_path)
+        self._git("update-ref", "refs/remotes/origin/main", "HEAD", cwd=tmp_path)
+        assert self._resolve(tmp_path) == {"marker": "newly-committed"}
+
+    @pytest.mark.parametrize("text,expected", [
+        ("", {}),
+        ("[malformed", {}),
+        ("marker: first\n", {"marker": "first"}),
+    ])
+    def test_presence_probe_retains_first_match_and_never_reads_lower_priority_blob(
+        self, tmp_path, monkeypatch, text, expected,
+    ):
+        from agent_worktrees import git_ops
+
+        self._empty_committed_anchor(tmp_path)
+        first, later = cfg.inrepo_config_path(tmp_path), cfg.legacy_inrepo_config_path(tmp_path)
+        for path, content in ((first, text), (later, "marker: lower-priority\n")):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        self._git("add", "-A", cwd=tmp_path)
+        self._git("commit", "-m", "config priority", cwd=tmp_path)
+        self._git("update-ref", "refs/remotes/origin/main", "HEAD", cwd=tmp_path)
+        first.write_text("marker: uncommitted\n", encoding="utf-8")
+        original, reads = git_ops.git, []
+
+        def observed(*args, **kwargs):
+            if args[0] == "show":
+                reads.append(args[1])
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(git_ops, "git", observed)
+        assert self._resolve(tmp_path) == expected
+        assert reads == [f"origin/main:{first.relative_to(tmp_path).as_posix()}"]
+
+    @pytest.mark.parametrize("failure", ["exit", "timeout", "non-text", "os-error", "git-error"])
+    def test_presence_probe_unavailability_retains_bounded_blob_reads_and_warns(
+        self, tmp_path, monkeypatch, caplog, failure,
+    ):
+        import subprocess
+        import types
+
+        from agent_worktrees import git_ops
+
+        self._empty_committed_anchor(tmp_path)
+        path = cfg.inrepo_config_path(tmp_path)
+        path.parent.mkdir(parents=True)
+        path.write_text("marker: actual-blob\n", encoding="utf-8")
+        self._git("add", "-A", cwd=tmp_path)
+        self._git("commit", "-m", "config", cwd=tmp_path)
+        self._git("update-ref", "refs/remotes/origin/main", "HEAD", cwd=tmp_path)
+        original, reads = git_ops.git, []
+
+        def unavailable(*args, **kwargs):
+            assert 0 < kwargs["timeout"] <= 15
+            if "ls-tree" in args:
+                if failure == "timeout":
+                    raise subprocess.TimeoutExpired(args, kwargs["timeout"])
+                if failure == "os-error":
+                    raise OSError("probe unavailable")
+                if failure == "git-error":
+                    raise git_ops.GitError(["git", *args], 128, "probe unavailable")
+                return types.SimpleNamespace(returncode=128 if failure == "exit" else 0, stdout=None)
+            if args[0] == "show":
+                reads.append(args[1])
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(git_ops, "git", unavailable)
+        assert self._resolve(tmp_path) == {"marker": "actual-blob"}
+        assert reads == [f"origin/main:{path.relative_to(tmp_path).as_posix()}"]
+        assert "presence probe" in caplog.text and "bounded ordered reads" in caplog.text
+
+    def test_absence_probe_uses_literal_candidate_paths(self, tmp_path, monkeypatch):
+        from agent_worktrees import git_ops, inrepo_config_source
+
+        self._empty_committed_anchor(tmp_path)
+        (tmp_path / "config1.yaml").write_text("marker: unrelated\n", encoding="utf-8")
+        self._git("add", "-A", cwd=tmp_path)
+        self._git("commit", "-m", "non-matching config", cwd=tmp_path)
+        self._git("update-ref", "refs/remotes/origin/main", "HEAD", cwd=tmp_path)
+        original, calls = git_ops.git, []
+
+        def observed(*args, **kwargs):
+            calls.append(args)
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(git_ops, "git", observed)
+        assert inrepo_config_source.load_inrepo_config_from_committed_ref(
+            tmp_path, (Path("config[1].yaml"),),
+        ) == {}
+        assert len(calls) == 2 and not any(args[0] == "show" for args in calls)
+
+    def test_presence_probe_spends_shared_deadline_before_fallback(self, tmp_path, monkeypatch, caplog):
+        import subprocess
+        import types
+
+        from agent_worktrees import git_ops, inrepo_config_source as src
+
+        clock, calls = {"t": 1000.0}, []
+
+        def slow_git(*args, timeout, **kwargs):
+            calls.append((args, timeout))
+            clock["t"] += timeout
+            if args[0] == "symbolic-ref":
+                return types.SimpleNamespace(returncode=0, stdout="refs/remotes/origin/main\n")
+            raise subprocess.TimeoutExpired(args, timeout)
+
+        monkeypatch.setattr(git_ops, "git", slow_git)
+        monkeypatch.setattr(src.time, "monotonic", lambda: clock["t"])
+        with src.resolution_budget():
+            assert self._resolve(tmp_path) == {}
+            assert self._resolve(tmp_path) == {}
+        assert [timeout for _, timeout in calls] == [15, 15]
+        assert "ls-tree" in calls[1][0]
+        assert "bounded ordered reads" in caplog.text
 
     def _make_remote_with_branch_configs(
         self, tmp_path: Path, *, configs: dict[str, str]

@@ -142,8 +142,11 @@ matrix below are _(agent-recommended)_ implementation details.
 - [x] Qualify MCP's actual PowerShell `init.ps1` producer and its remaining
   visible native diagnostic boundaries without formatting MCP protocol output
   (#7879).
-- [ ] Qualify Budget Guidance's actual self-staged PowerShell installer and
-  its construction-shell diagnostics before declaring captured UTF-8 output.
+- [x] Qualify Budget Guidance's actual self-staged PowerShell installer and
+  its construction-shell diagnostics before declaring captured UTF-8 output
+  (#7888).
+- [x] Qualify Machines' actual nested PowerShell/Python producers, including
+  legacy decision progress and undecorated lifecycle JSON (#7901).
 - [ ] Prefix every human-readable install/update line with a wall-clock time;
   suffix it with honestly labeled monotonic elapsed time or completed-step
   duration. Do not represent arbitrary child-line arrival as execution cost.
@@ -157,6 +160,9 @@ matrix below are _(agent-recommended)_ implementation details.
 - [ ] Consolidate banners, status names, nesting and error presentation;
   preserve useful detail without duplicate timestamps, repeated status
   prefixes or contradictory aggregate success.
+- [x] Replace remaining installer-owned stamp, initialization and provisioning
+  decoration through the existing emitters, retaining deferral policy and
+  admitting-parent outcomes (#7908).
 - [ ] Preserve JSON/quiet/protocol output, redaction and Windows/POSIX parity.
 
 ### Phase 3 - Remove proven unnecessary work
@@ -260,8 +266,189 @@ bounded source delta inspection.
 
 ## Journal
 
+### 2026-10-22 - Portable selected-context consumer qualified
+
+- The selected-context path now prefers the portable resolver in the same
+  admitted payload, just as the installation-mode probe already does.
+  Platform-native helper admission and native-only compatibility remain.
+  Both routes retain fresh validation, exact context/plugin/durable-root
+  arguments, same-plugin payload binding, cross-plugin expected-cell-root
+  binding, the fifteen-second deadline and explicit refusals.
+- The selected-context transport moved into the existing probe module,
+  shrinking the grandfathered reconciler rather than widening its baseline.
+  Its caller-owned subprocess is windowless. Both actual resolver producers
+  declare UTF-8; explicit decoding also corrects the native fallback's
+  locale-dependent non-ASCII root interpretation.
+- Real own-plugin, cross-plugin, Unicode and tampered-namespace controls pass
+  through Python and both Windows PowerShell hosts. The fixture explicitly
+  decodes its UTF-8 stamp output and relocates its actual payload with the
+  Unicode home. It protects every installation-state file; only Desktop
+  PowerShell's exact CLR startup-profile cache is excluded as host-owned,
+  not mistaken for an SDK write. Missing native assets, native-only fallback,
+  malformed output, nonzero exits, unavailable commands and timeouts have
+  explicit controls.
+- The complete four-module consumer cohort passes 300 cases on Windows
+  (one platform skip) and 284 on Linux (17 Windows-specific skips).
+  The aggregate Linux selection and then its publication-policy module alone
+  exceeded the unchanged 300-second group bound. All policy cases subsequently
+  passed in three logical cohorts: publication/discovery, custom-bootstrap
+  preflight and payload-stage policy. No test was omitted and no item, child,
+  process, memory or group limit was raised.
+- The [paired audit](audit.md#remaining-read-only-plan-cost-and-selected-context-validation)
+  compares the actual original/current consumer against the same immutable
+  inputs: medians 2.471 versus 0.403 seconds, with one fresh validation in both
+  and the parent-owned PowerShell resolver call removed. These two-sample
+  fixture measurements do not establish a whole-update or installed-state
+  speedup.
+- Unit and simple end-to-end tiers exercise actual resolver processes and
+  stamped context records. Full clean-room runtime construction is unchanged
+  and was not repeated; live host/external-venue rollout remains unauthorized.
+  No dependencies were installed. The parent effort, installed-state proof
+  and complete-update cost comparison remain open.
+
+### 2026-10-22 - Presentation merged; remaining planning cost isolated
+
+- #7908 merged after a current-head approval, no open findings and all required
+  checks passing. Its source worktree remains responsible for this active
+  effort, rather than finalizing after a presentation milestone. Installed
+  serving state and equivalent complete-update cost remain unproven.
+- A paired experiment through the real read-only plan builder retained
+  identical results, helper-action counts and fixture bytes/mtimes across
+  missing, standalone, managed, invalid, unsupported and foreign publication
+  records, plus a managed healthy runtime. It changed only the previously
+  reviewed Python site-initialization flag, not policy or helper contents.
+  The healthy plan used one fresh probe and measured medians of 0.617 seconds
+  with site initialization and 0.543 without. Other cases were noisy and
+  sometimes reversed; this does not explain or resolve a minute-long live
+  reconciliation.
+- The explicit cross-plugin context route still starts PowerShell to invoke
+  the same payload-owned resolver. In a real existing governed-plan fixture,
+  that native call took 2.348 seconds versus 0.524 for the same payload's
+  isolated portable resolver, with identical complete JSON, stderr and exit
+  status and unchanged fixture bytes/mtimes. This is one isolated route, not a
+  deployed-flow extrapolation. The next bounded slice must retain a fresh
+  validation, native compatibility fallback, admission checks and refusals
+  while avoiding the measured extra shell startup.
+
+### 2026-10-22 - Remaining stamp and initialization decoration qualified
+
+- Eleven PowerShell stamp producers and their four decorated Bash
+  counterparts now report their existing action and deferral reason through
+  the existing progress helper. Index still explicitly defers construction
+  to setup, not first use. Containers, MCP and Machines report initialization
+  through the same helpers on both platforms, without a decorative completion
+  banner before cleanup. Bridge's PowerShell provisioning action is ordinary
+  progress too.
+- Only these emitters and adjacent routine blank writes changed. All eleven
+  complete PowerShell entrypoints parse and retain identical nonpresentation
+  tokens after checkout-line-ending normalization. All seven changed Bash
+  entrypoints pass native syntax checks. Status/uninstall output, interactive
+  policy prompts, arbitrary child lines, helpers, native arguments, cleanup
+  and programmatic CLI/protocol streams are unchanged.
+- The existing native emitter test now executes the affected helpers and
+  literal calls on PS5, PowerShell 7 and Bash. Real staged stamp controls on
+  both Windows hosts preserve deferral reasons and the final exit outcome,
+  without banners or empty framed records. The complete Windows
+  updater/materialization cohort passed 229 cases with two platform skips;
+  the exact frozen candidate's Linux counterpart passed 191 with 40 platform
+  skips. All thirteen install contracts and canonical declarations pass.
+- Unit and simple end-to-end tiers cover source emitters, actual staged first
+  stamps and release materialization. This changes presentation only, so
+  unchanged full runtime-assembly clean-room scenarios were not repeated.
+  No live host/external-venue update is authorized, and no no-op cost or
+  deployment improvement is claimed. The broader presentation, installed-state
+  and equivalent-operation-count completion gates remain open.
+
+### 2026-10-22 - Machines qualification merged; presentation cleanup next
+
+- #7901 merged after a fresh approval at the Python 3.10-compatible head,
+  resolution of its collection finding and all required checks passing.
+  The attribution check initially encountered an empty HTTP 500 response
+  from GitHub's commit-to-PR endpoint; one diagnosed retry passed without
+  changing metadata rules, adding a dummy commit or bypassing CI.
+- All thirteen PowerShell producer declarations are now qualified at their
+  actual entrypoints. This is source qualification, not installed-release
+  proof or an equivalent healthy-no-op measurement. The effort and #6600
+  remain open; no further live host update is authorized.
+- The remaining presentation audit distinguishes installer-owned stamp,
+  initialization and provisioning banners from status/uninstall output and
+  contract comments. The next slice removes decoration at those emitters,
+  retaining deferral reasons, diagnostics and the admitting parent's timed
+  outcomes. It must not filter arbitrary child output or alter Bridge's
+  programmatic CLI/protocol streams.
+
+### 2026-10-22 - Machines nested producers qualified before publication
+
+- Real native fixtures reproduced legacy-encoded construction stderr at
+  success and failure on PS5 and PowerShell 7, plus the actual finite Python
+  lifecycle refusal's legacy-encoded non-ASCII diagnostic. The constructor
+  now uses its existing dual-stream helper and producer writer. The Python
+  lifecycle producer initializes only explicitly requested redirected UTF-8
+  text writers, retaining its original encoding-error policies.
+- The actual legacy-probe/staged-stamp route exposed PowerShell 5.1
+  module-preparation progress serialized as CLIXML on stderr. The shared
+  decision child's own command now suppresses progress before module loading.
+  Its ordinary diagnostics, including successful warnings, and refusal
+  outcomes remain intact. Canonical controls exercise both actual projected
+  callers, Machines and Index, at success and nonzero native status.
+- Machines' actual `init.ps1` now carries the canonical guarded initializer
+  and source-bound declaration. The native helper implementation, original
+  child arguments, source checks, constructor callback, staging/watchdog,
+  receipt and lifecycle authority are unchanged. Long-running delegates were
+  not replaced by buffered capture wrappers.
+- Required PR CI rejected the six-line growth of the grandfathered lifecycle
+  module. The unchanged CLI parser/JSON-error adapter and requested-writer
+  initializer now live in a private CLI module loaded by the existing absolute
+  loader before SDK imports, with bytecode writes still disabled. The main
+  lifecycle module is 931 lines and the adapter 113; no baseline was widened.
+  AST comparison preserves the original CLI statement body and help description.
+- First-touch fixtures use the original installer, real legacy gate and
+  source snapshot under an empty profile, including quoted/non-ASCII paths.
+  The format fixture copies its actual script/governance closure rather than
+  claiming to qualify a complete runtime assembly. An initial cold copy of
+  the full materialized payload exceeded its original 20-second fixture
+  bound; the bound was not raised and no production copy-speed improvement
+  is claimed. Fixture children now use the existing strict kill-on-close Job
+  primitive so timeout cleanup cannot leave descendants holding pipes.
+- The updater/materialization/probe Windows cohort passed 249 cases with
+  seven platform skips. The full native/lifecycle runtime cohort passed all
+  49 cases after the CLI extraction, including compact JSON on PS5 and
+  PowerShell 7 at both output-request modes and the maintenance-token controls.
+  The native Linux five-module cohort passed 238 cases with 56 platform
+  skips. Materialization covers all thirteen producers; actual standalone
+  entrypoint controls retain optional-helper absence and requested-missing-helper
+  refusal.
+- The broad qualification exposed stale tests, not a license to ignore
+  failures: the Index status fixture now includes its real packaged scripts
+  and materialized engine; boundary assertions follow the current
+  publication guard, metadata-only startup and atomic publication owners.
+  A POSIX-only systemd case is classified explicitly on Windows while its
+  Windows task counterpart remains covered. A synthetic maintenance-profile
+  test no longer accidentally consumes the runner's real WSL kernel identity.
+  No guest registration or production policy was changed.
+- Unit and simple end-to-end tiers include real native diagnostics,
+  admitting-parent capture, unchanged unrequested bytes, compact lifecycle
+  JSON and first-stamp refusal/absence controls. Full clean-room runtime
+  construction is unchanged and was not repeated; no host or external-venue
+  update is authorized for this candidate. No runtime dependency was installed.
+- Review caught a Python 3.10 collection regression in the new native fixture's
+  version lookup. It now reads the synchronized `plugin.json` version using
+  the already-imported JSON parser. All ten nodes collect on the existing
+  Python 3.10.20 interpreter and the native controls pass again. Only missing
+  conditional Pytest dependencies were restored into isolated task scratch;
+  no interpreter, plugin runtime or existing test environment was modified.
+- Documentation impact is limited to the plugin's output boundary, the
+  shared install contract and the canonical legacy-probe reference. This is
+  a qualified source candidate, not a merged or installed release. Both
+  parent objectives, remaining presentation work and equivalent no-op
+  measurements remain open.
+
 ### 2026-10-22 - Budget staged output and native diagnostics qualified
 
+- #7888 merged after current-head approval, empty review threads and all
+  required checks passed. The authorized exception covered only the
+  additional CODEOWNER vote, not CI. Both parent objectives remain open;
+  this source merge does not establish promotion or installed rollout.
 - Real PS5 and PowerShell 7 fixtures reproduced legacy-encoded construction
   stderr and first-stamp output before enrollment. The construction probe
   retained isolated Python flags, literal argv, successful warnings and
@@ -296,9 +483,13 @@ bounded source delta inspection.
 - Documentation impact is confined to Budget's installer section and the
   shared captured-output contract. Runtime JSON, output-free hooks, public
   CLI arguments and configuration remain unchanged.
-- This is a qualified source candidate, not a merged, promoted or installed
-  release. Machines' remaining output boundary, equivalent no-op counts and
+- This qualifies merged source, not a promoted or installed release.
+  Machines' remaining output boundary, equivalent no-op counts and
   costs, serving-state proof and parent launch/trust obligations remain open.
+- Next: qualify Machines' actual `init.ps1` output owner. Its construction
+  helper has the same raw stderr boundary, while legacy/cell routing adds
+  nested PowerShell and Python producers that require explicit stream and
+  protocol checks before enrollment.
 
 ### 2026-10-22 - MCP native diagnostics qualified before output enrollment
 

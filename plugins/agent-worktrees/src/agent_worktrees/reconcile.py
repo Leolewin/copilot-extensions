@@ -51,7 +51,7 @@ import os
 import platform
 import re
 import shutil
-import subprocess
+import subprocess as subprocess  # Preserve the shared native-run test seam.
 import sys
 import time
 from collections.abc import Callable, Sequence
@@ -64,7 +64,9 @@ import yaml
 from . import config as cfg
 from . import runtime_identity
 from .installer_capabilities import posix_zero_downtime_flag_supported
-from .installation_probe import run_installation_probe, strict_json_object as _strict_json_object
+from .installation_probe import (
+    run_context_resolution, run_installation_probe, strict_json_object as _strict_json_object,
+)
 from .reconcile_deployment import execution_diagnostic, publication_diagnostic
 from .update_gate import runtime_allowed as runtime_allowed
 
@@ -587,6 +589,9 @@ def _selected_runtime_root(
         raise ValueError(
             "no trusted installation-context validator is available"
         )
+    portable = helper.with_name("installation_context.py")
+    if portable.is_file():
+        helper = portable
     try:
         durable_home = pointer.parents[4]
         expected_cell_root = pointer.parents[2]
@@ -595,7 +600,7 @@ def _selected_runtime_root(
             f"COPILOT_EXTENSIONS_CONTEXT is not in the durable receipt layout: "
             f"{pointer}"
         ) from error
-    if os.name == "nt":
+    if helper.suffix == ".ps1":
         shell = shutil.which("pwsh") or shutil.which("powershell")
         if shell is None:
             raise ValueError(
@@ -613,7 +618,7 @@ def _selected_runtime_root(
             command.extend(["-ExpectedCellRoot", str(expected_cell_root)])
     else:
         command = [
-            sys.executable,
+            sys.executable, "-I", "-S", "-X", "utf8",
             str(helper),
             "resolve",
             "--context",
@@ -630,30 +635,10 @@ def _selected_runtime_root(
     child_environment = os.environ.copy()
     child_environment.pop("COPILOT_PLUGIN_ROOT", None)
     child_environment.pop("PYTHONPATH", None)
+    result = run_context_resolution(command, child_environment)
     try:
-        process = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            check=False,
-            env=child_environment,
-            timeout=15,
-        )
-    except subprocess.TimeoutExpired as error:
-        raise ValueError(
-            "installation-context validation timed out"
-        ) from error
-    except OSError as error:
-        raise ValueError(
-            f"installation-context validator could not run: {error}"
-        ) from error
-    if process.returncode:
-        detail = process.stderr.strip() or process.stdout.strip() or "validation failed"
-        raise ValueError(detail)
-    try:
-        result = json.loads(process.stdout)
         root = Path(result["pluginRoot"])
-    except (json.JSONDecodeError, KeyError, TypeError) as error:
+    except (KeyError, TypeError) as error:
         raise ValueError(
             "installation-context validator returned invalid output"
         ) from error
@@ -1576,6 +1561,7 @@ def build_uninstall_plan(
 
 def _run_plan_step(
     argv: Sequence[str], update: dict[str, Any], log: Callable[[str], None],
+    *, output_fd: int | None = None,
 ) -> int:
     """Run one plan step under its installer deadline, killing its tree on expiry.
 
@@ -1596,8 +1582,11 @@ def _run_plan_step(
     except (OSError, ValueError) as error:
         log(f"    {error}")
         return 1
-    run = run_installer(argv, cwd=None, env=env, deadline_s=deadline,
-                        log=lambda line: log(f"    {line}"))
+    stream = (
+        {"output_fd": output_fd} if output_fd is not None
+        else {"log": lambda line: log(f"    {line}")}
+    )
+    run = run_installer(argv, cwd=None, env=env, deadline_s=deadline, **stream)
     if run.rc is None:
         log(f"    {run.status}")
         return 124 if run.status.startswith("timed out") else 1
@@ -2024,14 +2013,14 @@ def apply_plan(
     include_payload_refresh: bool = False,
     log: Callable[[str], None] | None = None,
     runner: Callable[[Sequence[str]], int] | None = None,
+    output_fd: int | None = None,
 ) -> dict[str, Any]:
-    """Execute the reconciliation plan **in-process** (the launcher's 2-pass loop).
+    """Execute the canonical two-pass reconciliation plan under caller custody.
 
-    The worktree launchers run ``reconcile-plugins`` and execute the emitted
-    ``argv`` vectors themselves, re-invoking for a second pass so a freshly
-    installed payload's runtime is picked up. This function is that same loop in
-    Python, so a session that does **not** go through the worktree launcher can
-    still self-provision an enabled plugin's runtime (dotfiles #693). The
+    Native launchers submit ``launch-update reconcile`` and session hooks use
+    ``reconcile-plugins --apply`` through the durable execution driver.
+    The second pass picks up a freshly
+    acquired payload's runtime without a second native command executor. The
     ``provision-check`` sessionStart shim spawns ``reconcile-plugins --apply``
     (which calls this) **detached**, so a slow first-run venv build never blocks
     session start.
@@ -2045,7 +2034,9 @@ def apply_plan(
     _log = log or (lambda _m: None)
 
     def _default_runner(argv: Sequence[str], update: dict[str, Any]) -> int:
-        return _run_plan_step(argv, update, _log)
+        if output_fd is None:
+            return _run_plan_step(argv, update, _log)
+        return _run_plan_step(argv, update, _log, output_fd=output_fd)
 
     def _custom_runner(argv: Sequence[str], update: dict[str, Any]) -> int:
         assert runner is not None

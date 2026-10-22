@@ -10,8 +10,7 @@ that pattern to this repository.
 
 | Effort | Status | Coordination |
 |--------|--------|--------------|
-| [Coordinated Launch Maintenance](active/coordinated-launch-maintenance/README.md) | Draft; nonblocking healthy handoff with coordinated adopted background maintenance | #7694; preserves #6812/#6820/#7667 owners |
-| [Dynamic Reverse Reservations](active/dynamic-reverse-reservations/README.md) | Active; coordinator/finite-forward source merged, opt-in SSH consumer qualification; production integration retained | #7719; preserves #63/#6681/#5789/#6804/#6240/#6424 owners |
+| [Coordinated Launch Maintenance](active/coordinated-launch-maintenance/README.md) | Active; source-only Windows broker amendment precedes implementation; release and rollout remain open | #7694; prerequisite #6859; preserves #6812/#6820/#7667 owners |
 | [SSH Reverse Candidate Forward](active/ssh-reverse-candidate-forward/README.md) | Active; reviewed intent merged; finite SSH owner candidate and lifecycle review corrections in progress | #7720; complements #7719 publication without a second selector; actual OpenSSH/adoption remain separate |
 | [Backlog Reconciliation](active/backlog-reconciliation/README.md) | Active; oldest-first evidence and requirement-preserving consolidation, no implementation | #7556; 1,458 baseline, 729 guidance checkpoint |
 | [Feed Construction Release Gate](active/feed-construction-release-gate/README.md) | Draft; complete configured-feed construction and installed-launch qualification before CI/promotion activation | #7529; preserves #3336/#6237 control and #7420/#7446/#7514 repair owners |
@@ -78,10 +77,10 @@ that pattern to this repository.
 | [Agent-Process Self-Report Registry](active/agent-process-self-report-registry/README.md) | Draft | #5559 |
 | [Full-Harness Startup Reliability](active/full-harness-startup-reliability/README.md) | Active | #3303 |
 | [Unified Skill Review](active/unified-skill-review/README.md) | Draft | #2847 |
-| [Handoff Cutover Lifecycle Journal](active/handoff-cutover-lifecycle-journal/README.md) | Draft | #2457 |
+| [Handoff Cutover Lifecycle Journal](active/handoff-cutover-lifecycle-journal/README.md) | Active; complete retained acceptance, implementation/native gates open | Plan/Validation/Journal and open bounded-source issues; #2457 is source provenance after reviewed complete intake |
 | [Handoff Live Cutover](active/handoff-live-cutover/README.md) | Active | #2249† |
 | [Handoff Cutover Reload Robustness](active/handoff-cutover-reload-robustness/README.md) | Active | #5250† |
-| [Context-Handoff Overhaul](active/context-handoff-overhaul/README.md) | Draft | #2594 |
+| [Context-Handoff Overhaul](active/context-handoff-overhaul/README.md) | Active; complete retained acceptance, implementation/native gates open | Plan/Validation/Journal and open bounded-source issues; #2594 is source provenance after reviewed complete intake |
 | [Custom Context Aggregator Retirement](active/custom-context-aggregator-retirement/README.md) | Draft | #2173 |
 | [SessionStart Static/Dynamic Content Conformance](active/sessionstart-static-dynamic-conformance/README.md) | Active | #2256 |
 | [agent-logger Aggregate Configuration](active/agent-logger-aggregate-configuration/README.md) | Active; complete aggregate authorization and adoption acceptance retained | Plan/Validation/Journal plus open bounded source issues; #1817 is historical after complete reviewed intake |
@@ -129,6 +128,7 @@ that pattern to this repository.
 
 | Effort | Outcome | Coordination |
 |--------|---------|--------------|
+| [Dynamic Reverse Reservations](2026/10/22%20dynamic-reverse-reservations/README.md) | Done; bounded coordinator/finite-forward composition and isolated SSH consumers merged; no rollout | #7719; remaining production integration explicitly transferred to #7238, source custodians retained |
 | [CodeSpaces Authentication CTA](2026/10/22%20codespaces-authentication-cta/README.md) | Done; reviewed provider/Manager source merged, no native authorization or rollout | #7793 retains native acceptance and rollout; #4180 remains separate |
 | [RedirectionGuard Adoption](2026/10/20%20redirectionguard-adoption/README.md) | Done; shared interpreter and failed-front-door source repairs merged to Dev and qualified; no rollout | #7445; publication and installed-consumer recovery retained by #7305, construction by #7420 |
 | [Gateway Native Qualification](2026/10/20%20gateway-native-qualification/README.md) | Done; explicit native selection and actual exact-source amd64/ARM64 assembled proofs merged, private evidence/images retained; no rollout | #7257 retains provider/live-edge gates; authentication, lifecycle and adoption owners unchanged |

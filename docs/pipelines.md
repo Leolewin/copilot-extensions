@@ -538,21 +538,18 @@ Both the required guard and the review fallback run on
 `main` via a promotion — request a review manually for any PR opened
 before that first promotion completes.
 
-The automatic fallback gives native/manual review **five minutes from the
-triggering PR event's `updated_at` timestamp**, without API polling. Queue time
-counts toward that grace: a run queued for five minutes does not occupy a runner
-for another five. Invalid/future event timestamps fail before requesting review.
-It first checks live eligibility, without waiting when the PR is already
-closed/draft/retargeted/superseded, pending Copilot review, or reviewed for the
-current diff. Only an unresolved request holds a runner for the remaining grace;
-read time also counts toward that interval. After a wait it refreshes the entire
-eligibility snapshot before any write. A run that arrives after the grace needs
-only one snapshot, not a second read or a delay. Requests still inside their own
-five-minute grace period also suppress a nudge. Completed reviews must be newer
+The automatic request reads one live eligibility snapshot and requests review
+immediately when no existing activity qualifies; it does not hold a runner for
+an initial event-based grace period or poll the API. Invalid/future event
+timestamps still fail before requesting review. Closed/draft/retargeted/
+superseded PRs, pending Copilot review and completed current-diff review suppress
+the request. An observed native/manual request still inside its own five-minute
+grace period also suppresses a nudge, without waiting or scheduling another run.
+Completed reviews must be newer
 than the latest base-retarget/reopen event. Identity checks accept the observed
 `Copilot` and `copilot-pull-request-reviewer[bot]` aliases only for API users
 typed `Bot`; the review write retains the canonical app login. A run superseded by a newer push
-leaves that push's grace period to its own queued run. Per-PR serialization keeps
+leaves that push's request to its own queued run. Per-PR serialization keeps
 an active run plus the latest pending event; independent PRs remain concurrent.
 
 If no review activity qualifies, the workflow makes **one nudge**. All reads use
@@ -747,6 +744,12 @@ Freshness rereads normally query only PRs associated with that head commit,
 not the entire repository's open-PR list. If this endpoint omits the current
 PR (as it can for a commit already on the default branch), a full current
 listing is required rather than assuming a unique head.
+The same fully paginated census is authoritative when commit association fails
+with HTTP 500, 502, 503 or 504; the script reports that fallback explicitly.
+Authorization, rate-limit and unclassified errors still fail closed, as do
+failed/incomplete censuses, missing membership, duplicate heads and moving
+metadata. Fallback pages consume the existing refresh request budget and keep
+the same final stable-snapshot and failure-fencing requirements.
 The association response supplies current PR metadata too; normal refreshes
 do not add a separate per-PR GET to each freshness read. New checks remain
 pending during pacing and are completed only after a fresh matching snapshot.

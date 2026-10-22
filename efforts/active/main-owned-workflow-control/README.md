@@ -209,6 +209,13 @@ not further capacity setup or individual installer-test repairs. The next
 source reduction and measurement methods are agent-recommended; required
 checks, release-unit coverage and existing source/control boundaries remain.
 
+**2026-10-22 - Immediate review timing (operator-selected behavior):**
+
+The operator selected `immediate_if_unrequested`: request review immediately
+when no pending/current-head review or recent request exists. Preserve the
+observed-request grace, Maintainer-only eligibility and all merge gates.
+Trusted Main activation and actual timing remain separate from source merge.
+
 ## Plan
 
 All slices use the execution gates in [design.md](design.md#phase-execution-gates).
@@ -314,6 +321,11 @@ authorizes critical main-path acceptance or a bounded administrative change.
   diagnostic/list output (#7865). Actual required source CI runs all three
   scanners in 22 seconds. Local paired comparisons and this natural sample
   do not close comparable whole-flow acceptance.
+- [x] Land the operator-selected immediate review request when no existing
+  activity qualifies, retaining recent-request suppression and all author,
+  identity, epoch, credential and one-write boundaries (#7914).
+  Qualified trusted Main activation and natural timing remain open; source
+  merge does not establish a deployed latency reduction.
 - [x] Consolidate main-PR admission into its existing trusted reminder
   invocation: release and prove admission and generated-content identifier
   scanning first, then remove legacy CI allocation while retaining full
@@ -418,6 +430,11 @@ authorizes critical main-path acceptance or a bounded administrative change.
   source closure, production-call coverage and the existing packet budget.
   #7874 and actual hosted execution prove all 778 admitted cases in 15.166
   seconds. This bounded Linux mapping is not full-census or Windows qualification.
+- [x] Map 33 original local plugin-resolution cases through 29 exact original
+  functions and unchanged parameterization, retaining the subprocess regression
+  outside the packet and preserving source closure, call coverage and budget.
+  #7881 and actual hosted execution prove all 811 admitted cases in 15.526
+  seconds. Full-census, platform and every-release acceptance remain separate.
 - [x] Verify a covering promotion activates the dev-owned baseline producer on
   default main; record authorized runtime adoption separately.
   #6631 and hosted job `115706505844` prove activation of #6438; this

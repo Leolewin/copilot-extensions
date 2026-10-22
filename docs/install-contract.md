@@ -1393,11 +1393,16 @@ paths, and any foreign plugin context are removed. A missing or invalid receipt
 blocks that plugin's mutation with an explicit diagnostic rather than falling
 through to an unattributed legacy root.
 
-Read-only launch preflight invokes the owning payload's portable
+Installation-mode probes and explicit-context validation in read-only launch
+preflight invoke the owning payload's portable
 `installation_context.py` with the running runtime's Python in isolated UTF-8
 mode, with explicit UTF-8 output decoding, including on Windows. Windows still
 requires its native helper to be present and uses it for older payloads without
-the portable helper. Probe failures
+the portable helper. Selected-context validation retains the existing
+same-plugin payload-root and cross-plugin expected-cell-root constraints,
+fresh receipt checks and fifteen-second deadline. Both helpers explicitly
+produce UTF-8 JSON, so context validation must not decode a non-ASCII root
+using the caller's locale. Probe failures
 remain explicit failures, never reasons to fall back to another authority.
 Pre-launch configuration omits foreign control-plane PR overlays, which do
 not participate in bootstrap-service selection; ordinary PR operations retain
@@ -2687,6 +2692,14 @@ requested UTF-8 output and literal forwarded arguments; the staging/watchdog
 authority and runtime CLI JSON are unchanged. POSIX has no corresponding
 PowerShell text-writer boundary.
 
+Machines' actual PowerShell producer also admits requested UTF-8 output. Its
+construction-shell diagnostics use the existing native helper, while its
+finite Python lifecycle producer initializes only its own requested text
+writers, preserving JSON and the original encoding-error policies. The
+shared legacy decision child used by Machines and Index suppresses automatic
+PowerShell module-preparation progress, not diagnostics or refusal status.
+Staging, receipt validation and lifecycle authority are unchanged.
+
 This declaration admits the existing Python updater's human-stream adapter;
 it does not replace signature/provenance checks or change `-File` arguments,
 script identity, exit handling, runtime construction or activation. Missing,
@@ -2707,7 +2720,13 @@ skipped progress. Captured parents normalize these helpers to running, done or
 skipped diagnostics with elapsed time. Only the parent's actual completion
 records an operation duration and result. This is emitter-side cleanup, not
 generic banner recognition or suppression of arbitrary empty child lines.
-Uninstall presentation is unchanged.
+Stamp actions likewise use the existing progress helpers, retaining whether
+runtime construction is deferred to first use or to explicit setup. Containers,
+MCP and Machines initialize with ordinary progress, without a second decorative
+completion banner before cleanup; the admitting parent records the final exit
+only after cleanup. Bridge's provisioning action follows the same convention.
+Status/uninstall presentation and programmatic CLI/protocol streams are
+unchanged.
 
 ### External dependency seasoning
 

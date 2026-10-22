@@ -3179,12 +3179,13 @@ function Start-DispatchDetachedLogonLauncher {
         [string[]]$LauncherArguments = @()
     )
     $spawn = @'
-import subprocess, sys
-from agent_procutil import windowless_daemon_kwargs
-subprocess.Popen(
+import sys
+from pathlib import Path
+from agent_procutil import spawn_daemon
+spawn_daemon(
     sys.argv[2:], cwd=sys.argv[1],
-    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    **windowless_daemon_kwargs(breakaway=True),
+    log_path=Path(sys.argv[1]) / 'supervise-launcher.log',
+    console_children=True,
 )
 '@
     & $LinkPython -c $spawn $InstallDir powershell.exe -NoProfile -ExecutionPolicy Bypass `
@@ -3812,7 +3813,7 @@ function Invoke-Stamp {
     # the marketplace payload open (it copies from the already self-staged
     # $PluginDir, freeing the singleton immediately). Shares its copy logic with
     # New-PluginBuildSnapshot (Install-Runtime's own build-isolation snapshot).
-    Write-Host ''; Write-Host '=== agent-dispatch stamp (defer runtime to first use) ===' -ForegroundColor Cyan; Write-Host ''
+    Write-Step 'agent-dispatch stamp; runtime deferred to first use'
     if (-not $SrcVersion) { Write-Fail 'Cannot stamp: no version in pyproject.toml'; exit 1 }
     $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
     foreach ($dir in @($InstallDir, $LocalBin)) {

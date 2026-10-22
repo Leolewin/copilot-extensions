@@ -43,6 +43,13 @@ param(
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+
+if ($env:COPILOT_EXTENSIONS_HUMAN_UTF8 -eq '1') {
+    if (-not [IO.File]::Exists((Join-Path $PSScriptRoot 'installer-human-output.ps1'))) {
+        throw 'Required installer human-output initializer is unavailable.'
+    }
+    . (Join-Path $PSScriptRoot 'installer-human-output.ps1')
+}
 . (Join-Path $PSScriptRoot 'versioned_runtime_native.ps1')
 
 if ($Action -in @('cell-repair', 'cell-uninstall', 'cell-attribute-legacy', 'cell-deactivate', 'cell-retire-legacy')) {
@@ -1825,7 +1832,11 @@ function Invoke-VersionedSlotClean {
     $py = Get-BootstrapPython
     if (-not $py) { throw 'Construction requires a bootstrap Python interpreter' }
     if (-not (Get-Command Start-RuntimeConstruction -ErrorAction SilentlyContinue)) {
-        $helpers = (& $py -I $vr --root $InstallDir construction-shell --shell ps1 | Out-String)
+        $nativeError = ''
+        $helpers = (Invoke-Hidden -FilePath $py `
+            -ArgList @('-I', $vr, '--root', $InstallDir, 'construction-shell', '--shell', 'ps1') `
+            -ErrorOutput ([ref]$nativeError) | Out-String)
+        if ($nativeError) { [Console]::Error.Write($nativeError) }
         if ($LASTEXITCODE -ne 0) { throw 'Canonical construction adapter is unavailable' }
         Invoke-Expression $helpers
     }
@@ -2135,8 +2146,7 @@ function Invoke-Stamp {
     # self-provisioning binstub -- deferring the heavy venv build to first use.
     # No venv, no uv; never holds the marketplace payload open (copies from the
     # already self-staged $PluginDir).
-    Write-Host ''
-    Write-Host '=== agent-machines stamp (defer runtime to first use) ===' -ForegroundColor Cyan
+    Write-Step 'agent-machines stamp; runtime deferred to first use'
     if (-not $SrcVersion) { Write-Fail 'Cannot stamp: no version in pyproject.toml'; exit 1 }
     # Same round-10 finding as Invoke-StampBinstubOnly above: the generated
     # launcher's marker root is hardcoded, not -InstallDir-aware.
@@ -2249,9 +2259,7 @@ if ($Action -eq 'stamp') { Invoke-Stamp; exit 0 }
 
 # -- Preflight checks --------------------------------------------------
 
-Write-Host ''
-Write-Host '=== agent-machines init ===' -ForegroundColor Cyan
-Write-Host ''
+Write-Step 'agent-machines init'
 
 if (-not (Test-Path $PkgSrcDir)) {
     Write-Fail "Package source not found at $PkgSrcDir"
@@ -2604,7 +2612,6 @@ if ($CellMode) {
 
 # -- 6. Verify ----------------------------------------------------------
 
-Write-Host ''
 $prevEAP = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
 $importOk = $false
@@ -2634,8 +2641,6 @@ if ($pathDirs -contains $LocalBin) {
     }
 }
 
-Write-Host ''
-Write-Host '=== agent-machines init complete ===' -ForegroundColor Cyan
 if ($CellMode) {
     Write-Host '  Runtime is ready through the owning payload command.' -ForegroundColor DarkGray
 } else {
