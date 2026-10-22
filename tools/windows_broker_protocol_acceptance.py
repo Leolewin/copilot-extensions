@@ -32,6 +32,15 @@ def imports(package_root: Path) -> None:
     sys.path.insert(0, str(package_root))
 
 
+def fixture_environment(source: dict[str, str], *, control: bool) -> dict[str, str]:
+    allowed = {
+        "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "PATH", "COMSPEC", "BROKER_FIXTURE_VALUE",
+    }
+    if control:
+        allowed.update({"RUNNER_TEMP", "GITHUB_ACTIONS", "RUNNER_ENVIRONMENT"})
+    return {name: value for name, value in source.items() if name.upper() in allowed}
+
+
 def caller(package_root: Path, root: Path) -> int:
     admit(root, True)
     imports(package_root)
@@ -44,10 +53,7 @@ def caller(package_root: Path, root: Path) -> int:
             str(Path(sys.base_prefix) / "python.exe"), "-I", str(root / "resident.py"),
             "argument with spaces", "", "\u65e5\n&",
         ],
-        cwd=str(root), env={
-            name: value for name, value in os.environ.items()
-            if name in {"SystemRoot", "TEMP", "TMP", "PATH", "BROKER_FIXTURE_VALUE"}
-        },
+        cwd=str(root), env=fixture_environment(dict(os.environ), control=False),
         creationflags=0x08000000,
         log_path=str(root / "resident.log"), stderr_log_path=str(root / "resident-error.log"),
     )
@@ -116,13 +122,7 @@ def inspect(root: Path) -> dict[str, object]:
         for cycle in range(2):
             offer_path = root / "caller-offer.json"
             offer_path.unlink(missing_ok=True)
-            env = {
-                name: value for name, value in os.environ.items()
-                if name in {
-                    "SystemRoot", "TEMP", "TMP", "PATH", "RUNNER_TEMP",
-                    "GITHUB_ACTIONS", "RUNNER_ENVIRONMENT",
-                }
-            }
+            env = fixture_environment(dict(os.environ), control=True)
             env.update({
                 CONFIG_ENV: str(config.config_path), OWNER_ENV: config.installation,
                 "BROKER_FIXTURE_VALUE": "live-only-synthetic\n&",

@@ -30,6 +30,18 @@ def test_protocol_caller_refuses_shared_host_before_loading_runtime(monkeypatch,
     protocol_probe.imports.assert_not_called()
 
 
+@pytest.mark.parametrize("name", ["SYSTEMROOT", "SystemRoot", "systemroot"])
+def test_protocol_fixture_preserves_case_insensitive_windows_prerequisites(name):
+    result = protocol_probe.fixture_environment({
+        name: r"C:\Windows", "PATH": r"C:\runtime", "GITHUB_ACTIONS": "true",
+        "UNRELATED_CREDENTIAL": "must-not-cross",
+    }, control=False)
+    assert result == {name: r"C:\Windows", "PATH": r"C:\runtime"}
+    assert protocol_probe.fixture_environment(
+        {"GITHUB_ACTIONS": "true"}, control=True,
+    ) == {"GITHUB_ACTIONS": "true"}
+
+
 def test_probe_refuses_inspection_outside_authorized_ci(monkeypatch, tmp_path):
     monkeypatch.setattr(probe.sys, "argv", ["probe", "inspect", str(tmp_path), "a" * 32])
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
