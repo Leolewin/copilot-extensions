@@ -1335,7 +1335,7 @@ The ordinary attributed-source path remains covered separately.
 Focused policy tests are:
 
 ```bash
-python -m pytest -q tools/test_dependency_age.py tools/test_installer_dependency_policy.py tools/test_seasoned_npm_install.py
+python -m pytest -q tools/test_dependency_age.py tools/test_installer_dependency_policy.py tools/test_dependency_uv_executable.py tools/test_seasoned_npm_install.py
 ```
 
 The editable-retention regression runs the real setuptools backend; the test
@@ -1406,7 +1406,12 @@ additional history explicitly, using the repository's scoped identity, before
 running validation rather than asking the guard to recover it during a push.
 The headless-launch guard shares a single file read and AST parse among its
 Python rules within each invocation; its rule coverage, syntax-error refusal,
-and declarative checks are unchanged.
+and declarative checks are unchanged. Daemon-only AST analysis runs only in
+the adopting plugins' source trees where that rule applies; all other Python
+rules still scan every production root. Adoption and file eligibility are
+recomputed on every invocation. Each AST visitor resolves its bound dispatch
+method once per node type and file, retaining the same traversal and scope
+handling without repeated dynamic method lookup.
 
 `tools/run-plugin-tests.py` builds/reuses a cached dev venv per plugin under
 `.test-venvs/<platform>/` (git-ignored; uses `uv`, so vendored
