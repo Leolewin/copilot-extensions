@@ -87,6 +87,7 @@ def test_zombie_only_group_eperm_settles_via_process_observation(guardian, monke
     rows = "  123   123 Z\n" + ("  124   123 S\n" if live_member else "")
     clock = iter([0.0, 0.0, 11.0])
     monkeypatch.setattr(guardian, "os", SimpleNamespace(killpg=killpg))
+    monkeypatch.setattr(guardian, "signal", SimpleNamespace(SIGKILL=9))
     monkeypatch.setattr(guardian, "subprocess", SimpleNamespace(
         run=lambda *a, **k: SimpleNamespace(stdout=rows), DEVNULL=subprocess.DEVNULL,
     ))

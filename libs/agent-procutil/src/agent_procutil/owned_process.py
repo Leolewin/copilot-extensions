@@ -92,6 +92,15 @@ def _observe_unreaped(process: subprocess.Popen):
     return status
 
 
+def _zombie_only_group(process: subprocess.Popen) -> bool:
+    """Confirm the group holds no live member besides its exited, unreaped leader."""
+    if sys.platform != "darwin":
+        return False
+    from agent_procutil._darwin_caller_owned import GroupCensus
+
+    return not GroupCensus().active(process.pid)
+
+
 def _retire_posix_group(
     process: subprocess.Popen, *, inherit_process_group: bool = False,
 ) -> None:
@@ -106,9 +115,9 @@ def _retire_posix_group(
     except ProcessLookupError:
         pass
     except PermissionError:
-        # Darwin reports EPERM for a group whose only member is the exited,
-        # still-unreaped leader; any other EPERM is a real permission failure.
-        if not exited:
+        # Darwin refuses killpg() for a group left with only its exited leader;
+        # leader exit alone never proves settlement, so a census must confirm it.
+        if inherit_process_group or not exited or not _zombie_only_group(process):
             raise
 
 

@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 from contextlib import nullcontext
 import errno
+import signal
 import subprocess
 import sys
 import time
@@ -509,20 +510,81 @@ def test_closed_lifetime_pipe_refuses_before_target_launch(tmp_path):
     assert not marker.exists()
 
 
-@pytest.mark.parametrize("exited", [True, False])
-def test_group_retirement_tolerates_eperm_only_for_an_exited_leader(monkeypatch, exited):
+def _eperm(*args):
+    raise PermissionError(errno.EPERM, "Operation not permitted")
+
+
+class _EpermGroupSignals:
+    """Real ``os`` except that signalling any process group reports EPERM."""
+
+    killpg = staticmethod(_eperm)
+
+    def __getattr__(self, name):
+        return getattr(os, name)
+
+
+@pytest.mark.parametrize(
+    "exited,zombie_only,inherit,settles",
+    [
+        (True, True, False, True),
+        (True, False, False, False),
+        (False, True, False, False),
+        (True, True, True, False),
+    ],
+)
+def test_group_retirement_accepts_eperm_only_for_a_confirmed_zombie_only_group(
+    monkeypatch, exited, zombie_only, inherit, settles,
+):
     process = SimpleNamespace(pid=123, returncode=None)
-
-    def killpg(pgid, sig):
-        raise PermissionError(errno.EPERM, "Operation not permitted")
-
+    monkeypatch.setattr(ownership, "os", SimpleNamespace(kill=_eperm, killpg=_eperm))
+    monkeypatch.setattr(ownership, "signal", SimpleNamespace(SIGKILL=9))
     monkeypatch.setattr(ownership, "_observe_unreaped", lambda child: object() if exited else None)
-    monkeypatch.setattr(ownership.os, "killpg", killpg)
-    if exited:
-        ownership._retire_posix_group(process)
+    monkeypatch.setattr(ownership, "_zombie_only_group", lambda child: zombie_only)
+    if settles:
+        ownership._retire_posix_group(process, inherit_process_group=inherit)
     else:
         with pytest.raises(PermissionError):
-            ownership._retire_posix_group(process)
+            ownership._retire_posix_group(process, inherit_process_group=inherit)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="native POSIX process-group retirement")
+@pytest.mark.parametrize("zombie_only", [True, False])
+def test_run_owned_reports_success_only_after_eperm_group_settlement(monkeypatch, zombie_only):
+    monkeypatch.setattr(ownership, "os", _EpermGroupSignals())
+    monkeypatch.setattr(ownership, "_zombie_only_group", lambda child: zombie_only)
+    argv = [sys.executable, "-I", "-c", "pass"]
+    if zombie_only:
+        assert ownership.run_owned(argv, timeout=10).returncode == 0
+    else:
+        with pytest.raises(PermissionError):
+            ownership.run_owned(argv, timeout=10)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="native Darwin process-group census")
+@pytest.mark.parametrize("live_member", [False, True])
+def test_darwin_census_refuses_eperm_while_a_group_member_lives(monkeypatch, tmp_path, live_member):
+    monkeypatch.setattr(ownership, "os", _EpermGroupSignals())
+    marker = tmp_path / "member.pid"
+    code = (
+        "import pathlib,subprocess,sys;"
+        "p=subprocess.Popen([sys.executable,'-c','import time;time.sleep(30)'],"
+        "stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);"
+        f"pathlib.Path({str(marker)!r}).write_text(str(p.pid))"
+        if live_member else "pass"
+    )
+    argv = [sys.executable, "-I", "-c", code]
+    if not live_member:
+        assert ownership.run_owned(argv, timeout=10).returncode == 0
+        return
+    try:
+        with pytest.raises(PermissionError):
+            ownership.run_owned(argv, timeout=10)
+    finally:
+        if marker.exists():
+            try:
+                os.kill(int(marker.read_text()), signal.SIGKILL)
+            except ProcessLookupError:
+                pass
 
 
 @pytest.mark.skipif(os.name == "nt", reason="native POSIX process-group retirement")
