@@ -1,6 +1,6 @@
 """Portable conversations and explicit clients; no implicit hosting or adoption."""
 
-__version__ = "0.1.12-dev1"
+__version__ = "0.1.13-dev1"
 
 from .store import ChatError, ChatStore, json_bytes, strict_json
 from .client import Client, ClientError
