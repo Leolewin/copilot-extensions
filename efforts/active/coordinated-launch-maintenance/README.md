@@ -92,6 +92,12 @@ The selected option was "Rework our draft around the merged execution driver
 remaining off-handoff scheduling work plus the independent #6859 broker repair.
 This does not expand deployment authority.
 
+Native-probe form selection (verbatim): `disposable-windows-ci`.
+The selected option was "Allow a disposable Windows CI experiment, including
+synthetic task registration and cleanup". This permits only a credential-free
+probe on an ephemeral Windows CI runner. It does not permit task registration
+on shared hosts, host updates or deployment.
+
 ## Plan
 
 ### Phase 1 - Reviewed contract
@@ -378,3 +384,34 @@ repository history.
   contracts passed for all thirteen plugins. This is real handoff/queue proof,
   not caller-Job survival, a registered broker test or installed qualification.
   Native POSIX and the independent Windows broker lanes remain open.
+- The operator separately authorized `disposable-windows-ci` for a synthetic
+  Task Scheduler activation/cleanup experiment. Use that lane to determine
+  actual instance/process binding and conditional child escape before treating
+  the Scheduled Task candidate as supported. The shared-host prohibition and
+  deployment gate remain unchanged.
+
+### 2026-10-22 - Disposable native activation candidate works
+
+- Ran the explicitly selected Windows probe in workflow run
+  [39850345336](https://github.com/ThomasMichon/copilot-extensions/actions/runs/39850345336)
+  against exact repair head `7b4e857a3e292470f4e94739239fca279b751688`.
+  Verified that the actual Windows probe step ran successfully; unrelated
+  native modes were skipped, not credited as passing.
+- Both independently activated task instances reported an engine PID equal
+  to the native pipe-server PID. The broker's process generation was pinned
+  and checked. Both brokers were themselves in a Job, but each suspended
+  resident successfully broke away and was confirmed in no Job before resume.
+- Each actual child resumed without a visible console and remained alive
+  through two observations after its finite broker exited. Actual native
+  child handles controlled termination and confirmed exit. The artifact reports
+  both child cleanups and deletion of the uniquely owned S4U registration.
+- This supports the finite, per-user, on-demand task candidate on the
+  exercised runner. It does not establish a universal engine/action PID rule:
+  production admission must verify the equality on each actual instance and
+  refuse mismatches. It also does not qualify authenticated production IPC,
+  nested caller-Job survival, installer adoption/update/rollback or a shared
+  host rollout.
+- Continue canonical broker implementation using these conditional native
+  checks, not the unproved immediate-Job inference. The three other retirement
+  corrections and the probe passed the unchanged full contained runner:
+  476 tests passed, 30 explicit platform/lifetime skips, with sandbox retirement.
