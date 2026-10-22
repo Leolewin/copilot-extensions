@@ -507,3 +507,32 @@ def test_closed_lifetime_pipe_refuses_before_target_launch(tmp_path):
         os.close(reader)
     assert result.returncode == -9
     assert not marker.exists()
+
+
+@pytest.mark.parametrize("exited", [True, False])
+def test_group_retirement_tolerates_eperm_only_for_an_exited_leader(monkeypatch, exited):
+    process = SimpleNamespace(pid=123, returncode=None)
+
+    def killpg(pgid, sig):
+        raise PermissionError(errno.EPERM, "Operation not permitted")
+
+    monkeypatch.setattr(ownership, "_observe_unreaped", lambda child: object() if exited else None)
+    monkeypatch.setattr(ownership.os, "killpg", killpg)
+    if exited:
+        ownership._retire_posix_group(process)
+    else:
+        with pytest.raises(PermissionError):
+            ownership._retire_posix_group(process)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="native POSIX process-group retirement")
+def test_group_retirement_settles_a_zombie_only_group():
+    process = subprocess.Popen(
+        [sys.executable, "-I", "-c", "pass"], stdin=subprocess.DEVNULL, start_new_session=True,
+    )
+    deadline = time.monotonic() + 5
+    while ownership._observe_unreaped(process) is None:
+        assert time.monotonic() < deadline
+        time.sleep(0.01)
+    ownership._retire_posix_group(process)
+    assert process.wait(timeout=2) == 0

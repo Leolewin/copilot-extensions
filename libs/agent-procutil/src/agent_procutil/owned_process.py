@@ -97,7 +97,7 @@ def _retire_posix_group(
 ) -> None:
     # Exclusive Popen ownership plus WNOWAIT pins the original PID through termination.
     # Never poll, communicate or wait this child before this boundary.
-    _observe_unreaped(process)
+    exited = _observe_unreaped(process) is not None
     try:
         if inherit_process_group:
             os.kill(process.pid, signal.SIGKILL)
@@ -105,6 +105,11 @@ def _retire_posix_group(
             os.killpg(process.pid, signal.SIGKILL)
     except ProcessLookupError:
         pass
+    except PermissionError:
+        # Darwin reports EPERM for a group whose only member is the exited,
+        # still-unreaped leader; any other EPERM is a real permission failure.
+        if not exited:
+            raise
 
 
 def _communicate_unreaped(
