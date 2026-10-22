@@ -87,6 +87,215 @@ the still-open #5694/#5682 qualification and residual-settlement obligation.
 
 ## Admitted narrow batches
 
+### C one fresh committed-config absence probe
+
+Each committed branch resolution first probes its literal candidate paths
+with one bounded `ls-tree -z --full-tree`. Only a successful, textually
+empty result proves absence and avoids the separate missing-blob reads.
+Presence retains ordered `git show` reads; the first existing blob still
+wins even when empty or malformed. An unavailable probe warns and retains
+those same ordered reads within the existing shared deadline. No result
+survives a later decision, and the optional second branch gets its own
+fresh probe. Branch precedence, disk fallback and parser behavior are
+unchanged.
+
+Native regressions exercise actual Git absence followed by a later committed
+candidate, literal bracket paths, first-match empty/malformed/valid blobs,
+uncommitted shadows, five probe-unavailability shapes and deadline exhaustion
+before fallback or a second resolution. The complete unpartitioned config
+and hook modules pass 173 tests without skips: 49.80 seconds pytest,
+61.89 seconds preparation/cleanup inclusive, exactly two work-stealing
+workers. Original item/group/native/process/memory bounds remain unchanged.
+Ruff F/E9, thirteen install contracts and diff checks pass.
+
+A fresh contained native interpreter calls actual `cfg.load_config`
+against an initially config-free repository, then observes newly committed
+policy despite a contradictory uncommitted file. It passes in 3.61 seconds
+including preparation/cleanup. Two earlier one-off consumer attempts failed
+on fixture assumptions (the unchanged default is `master`, and canonical
+config parents must be created recursively); neither receives passing credit.
+
+This below-altitude optimization changes no command, configuration schema,
+authority, precedence or installation lifecycle. Documentation impact is
+this census and the source effort journal. Fresh temporary repositories
+exercise first-touch resolution, not production installer provisioning;
+external-venue and rollout lanes are inapplicable. This is bounded functional
+evidence, not complete-plugin, quiet-host or repeated same-head qualification.
+Other residuals and parent #5694/#5682 settlement remain open.
+
+### H one fresh configuration read per protection decision
+
+`hooks._protected_branches` reads the in-repo mapping once and, when no
+explicit protection list applies, passes that exact mapping into
+`_default_branch` for the same decision. An empty mapping is a supplied
+read, not a request to read again. A standalone `_default_branch` call
+still resolves fresh configuration. No value survives into a later
+decision. Machine-local override > committed config > registry fallback >
+`origin/HEAD` precedence, explicit protected lists and existing hook
+allow/refuse behavior remain unchanged.
+
+Two native regressions count the actual committed-config reads and the
+empty-mapping path. A later real commit/push changes the next decision
+while an uncommitted file cannot shadow it. Existing machine-local and
+drop-in cases additionally exercise `_protected_branches`; four test
+doubles accept the new private keyword without altering their assertions.
+The complete unpartitioned hook module passes 37 tests without skips in
+41.69 seconds including preparation and cleanup, with exactly two workers
+and unchanged item/group/native/process/memory bounds.
+
+A simple actual `python -m agent_worktrees hook pre-commit` subprocess
+refuses a protected branch in a new linked worktree, then permits it after
+the remote-tracking policy is changed by a real commit/push. An uncommitted
+contradictory policy cannot shadow the new committed value. This real
+consumer passes in 9.45 seconds including preparation/cleanup, with
+headless bounded subprocesses and no host hooks or configuration touched.
+Ruff F/E9, thirteen install contracts and diff checks pass.
+
+This below-altitude decision-local reuse changes no command, schema,
+precedence or installation lifecycle. Documentation impact is this census
+and the owning effort journal. Fresh temporary repositories cover first
+use of the hook decision, not installer provisioning. No external venue,
+non-Windows, complete-plugin, rollout or repeated same-head qualification
+result is claimed. C's committed-ref absence probe, other residuals and
+parent #5694/#5682 qualification remain open.
+
+### Y fresh file configuration through an explicitly safe YAML backend
+
+`config._load_yaml_safe` selects PyYAML's `CSafeLoader` when available,
+otherwise `SafeLoader`, and passes that safe class explicitly to `yaml.load`.
+It still opens and parses the file on each call; no authority or result is
+cached. The existing missing/empty/nonmapping/malformed/read-error behavior
+is unchanged. This batch owns only the two Y production hunks and its
+configuration regression, not C's committed-ref absence probe or H's
+single-decision protection read.
+
+Both safe backends exercise UTF-8 aliases/merge keys, quoted mappings,
+replacement between reads, unsafe object tags, malformed input, lists,
+scalars, empty files, denied reads and deletion. The complete unpartitioned
+configuration module passes all 125 tests without skips in 32.56 seconds
+including preparation and cleanup, with exactly two workers and unchanged
+item/group/native/process/memory bounds.
+
+A fresh contained interpreter separately loads an actual first-touch file
+through `cfg.load_config`, then observes its replacement. Both the installed
+C backend and import-time fallback with `CSafeLoader` deliberately absent
+pass, in 3.83 seconds total including preparation/cleanup. An initial
+one-off check script had malformed string quoting and did not execute the
+consumer; only its corrected successful run receives credit. No package,
+service or runtime was installed or updated.
+
+Ruff F/E9, thirteen install contracts and diff checks pass. Documentation
+impact is this census and the owning effort journal; no command,
+configuration schema, file precedence or public behavior changes. The
+lightweight first-touch process check covers fresh parser selection, not
+installer provisioning. No external-venue or non-Windows result is claimed.
+This is a below-altitude backend substitution, not permission to skip fresh
+reads. H, C, other residuals and actual repeated complete same-head native
+Windows #5694/#5682 qualification remain open.
+
+### B-BACKED private copies preserve prior-publication evidence
+
+Two session seeds prepare the existing backed publication, with and without
+a saved base, through `_published_seed_environment` and `_seed_directory`.
+The seeds contain the real sync checkpoint, retained objects, prior remote
+publication and newer unpublished commit. `_copy_backed_pr` relocates this
+state through the existing recovered-copy helper without regenerating,
+rebinding or weakening checkpoint evidence. Each consumer still makes fresh
+remote observations and performs its own preview, confirmation, refusal,
+settlement or publication.
+
+The public `backed_publication(pr_repo, monkeypatch, with_base=...)` helper
+retains its four-field input and seven-field return contract. A small
+internal helper accepts an already-recovered six-field input so seed building
+does not repeat recovery setup. Existing routine-recovery direct imports and
+its specialized legacy `head_identity` setup remain compatible. Its common
+`owned_publication` fixture now copies the backed-with-base seed, capturing
+the real transport validator before applying the copy's synthetic slug
+adapter. This does not bypass destination validation.
+
+Advanced-head backed consumers and all three imperfect-evidence consumers
+use private fixtures. Two native isolation cases retain byte-identical
+checkpoint evidence and association across both base variants, preserve an
+absent rewrite identity, and prove first-copy commit/ref/remote/record/
+checkpoint mutations cannot reach a second copy or the immutable seed.
+A real successful settlement also verifies all seed bytes remain unchanged.
+Specialized fresh construction remains real; no production code, assertions,
+marks, skips, deadlines or runner groups change.
+
+The new two-case isolation control passed in 33.20 seconds including
+preparation and cleanup. Complete unpartitioned advanced-head and
+imperfect-evidence modules passed 25 and 15 nodes without skips:
+152.81 seconds for the advanced group (within a 397.62-second combined
+diagnostic that subsequently failed on routine recovery), and 131.09 seconds
+inclusive for imperfect evidence. Exactly two workers and all native,
+process and memory bounds remain unchanged.
+
+**Routine recovery is not qualified.** Its unpartitioned 57-node module
+hit the unchanged 240-second limit before and after the fixture conversion;
+the final verbose diagnostic completed 31 nodes before termination.
+There is no passing full-module result. Complementary functional-only
+partitions subsequently passed all 57 nodes without skips: 38 cases in
+154.66 seconds, six specialized cases in 103.66 seconds, and the other
+13 cases in 158.06 seconds (the latter two total 263.70 seconds including
+shared preparation/cleanup). A preceding 19-case partition timed out after
+18 cases and receives no pass credit. These partitions do not replace the
+normal group or establish a plugin result. The #5694/#5682 normal-group and
+repeated complete same-head qualification gates remain open; this slice
+must not be described as resolving the routine-recovery budget.
+
+Documentation impact is this census and the owning effort journal.
+This is below-altitude test-fixture reuse; no runtime command or public
+configuration changes. Real temporary Git repositories exercise its
+consumer contracts. Installation, first-provision, external development
+venue and rollout lanes are inapplicable. Other residual ownership remains
+as recorded below.
+
+### B-RECOVERED private copies of prepared divergent PR topology
+
+The recovered-PR session seed performs the existing publish/rebase/association
+setup once through `_seed_directory` and `_published_seed_environment`.
+The latter supplies the existing isolated HOME, Git configuration, identity
+key and disabled resident monitor; session setup must not rely on
+function-scoped autouse isolation. `_copy_pr_repo` gives each case private
+object stores, refs, hooks, config and tracking, with repaired native
+worktree links and relocated URLs.
+
+`_copy_recovered_pr` restores the refspec configuration, preserves an absent
+rewrite identity and remaps only an existing one to the copied destination.
+It advances the private record revision and observes the actual copied
+remote tip. The P adapter still validates real transport before relabeling
+the synthetic provider repository. Per-case confirmation, ref retention,
+fetch, lease/race, effect and audit assertions remain in the original tests.
+Custom Azure/attribution setups and the existing four-field
+`backed_publication` helper remain unchanged; B-BACKED is not bundled.
+
+Two added native controls verify complete seed-byte preservation,
+first-copy commit/ref/tracking/hook effects cannot reach a sibling,
+and an existing rewrite identity relocates without inventing one.
+The original confirmed-recovery case also checks the seed record and
+remote refs remain unchanged after the real recovery.
+An initial new assertion incorrectly expected the intentionally absent
+legacy rewrite identity to exist; it failed, was corrected to preserve
+that absence, and the final complete modules were rerun. That failed
+diagnostic receives no aggregate pass credit.
+
+The final unpartitioned break-glass and advanced-head modules passed all
+57/23 nodes without skips in sequential 148.02/145.67-second groups.
+Total including preparation and cleanup was 296.74 seconds; either
+group plus the entire shared overhead remains below 240 seconds.
+Exactly two workers and every item/native/process/memory bound remain
+unchanged. Ruff, thirteen install contracts and diff checks pass.
+No assertions, marks, skips, test identities or normal groups are retired.
+These consumer diagnostics are not complete-plugin or repeated same-head
+performance qualification.
+
+Documentation impact is this census: no runtime command, configuration
+or public behavior changes. This is below-altitude fixture reuse, not
+authority caching. Real temporary Git repositories exercise copy and
+recovery consumers. No install/bootstrap/first-provision or external
+development-venue behavior changes, so those production lanes are
+inapplicable. B-BACKED, other residuals and parent qualification remain open.
+
 ### A fresh recovery objects and atomic retention
 
 `prepare` and `retain_rewrite` resolve the current decision's commit refs

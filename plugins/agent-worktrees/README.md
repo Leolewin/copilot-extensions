@@ -45,14 +45,20 @@ front-door route as the already repo-aware handler. Without an explicit repo,
 ordinary project resolution remains required; the change does not start
 reconciliation or installation merely by resolving the route.
 
-Portable installation-mode probes run the selected Python with `-I -S` and
-explicit UTF-8 output. Their payload-owned helper uses only the standard
-library, so repeated probes need neither site-package initialization nor
-editable-package path expansion. The helper still resolves every requested
-payload, policy, receipt, environment and runtime root independently; this is
+Portable installation-mode probes and selected-context validation run the
+selected Python with `-I -S` and explicit UTF-8 output. Their payload-owned
+helper uses only the standard library, so repeated probes need neither
+site-package initialization nor editable-package path expansion. The helper
+still resolves every requested payload, policy, receipt, environment and runtime root independently; this is
 not an authority cache or an interpreter choice for runtime construction.
 Python versions before 3.14 report their base prefix under `-S`; the probe
 does not use that prefix to select installation identity or roots.
+An explicit core context for another plugin still receives a fresh validation
+before reconciliation ignores it. Windows retains native-helper admission and
+the native-only compatibility route, but does not start PowerShell when the
+same admitted payload supplies its portable resolver. Both resolver protocols
+are decoded as UTF-8; a portable refusal never triggers a native retry or
+selection of another authority.
 
 During `update`, registered plugin refresh resumes `payload_refresh` after
 marketplace authorization, including separately prepared fallback contexts.
@@ -74,6 +80,15 @@ them; neither requires a project.
 supervision, never a second installation writer.
 The [Manager's update reference](../../worktree-manager/README.md#durable-update-execution)
 owns the shared request/lifetime contract and its current migration boundary.
+
+Native launch maintenance submits fixed `launch-update bootstrap`,
+`launch-update reconcile` and `launch-update staged --status <acquisition-result>`
+phases to that owner.
+Bootstrap re-plans under custody; staged apply binds the acquisition and payload
+fingerprint and reconstructs its installer rather than executing supplied JSON
+arguments. Staged `--detach` returns acceptance, not installation success.
+The launchers submit it after foreground maintenance so its next-launch install
+remains nonblocking; blocking mode observes the same request.
 
 On Windows, ordinary and passive status-monitor starts bypass the venv Python
 redirector and use the real base **console** interpreter, preserving the venv

@@ -214,6 +214,16 @@ body or production behavior is copied or modified. Linux qualification includes
 the original symlink-escape assertion. This is a bounded mapping, not a completed
 historical or native-platform census.
 
+`tools/promotion_unit_tests/test_docs_consistency.py` re-exports all 29 original
+functions from `tools/test_check_docs_consistency.py`, replacing only the file
+prefix for release identities. The original test and production guard remain
+hash-bound; every case must reach an actual production call context under the
+unchanged observer, root and budget. Paths, exact casing, headings, reference/
+HTML links, file-versus-directory and real symlink-escape assertions execute
+against synthetic temporary trees. No Markdown parser, count regex, original
+test body or platform rule changes. This Linux mapping does not qualify the
+whole historical census, native Windows or the separate metadata/Git portfolio.
+
 ## Tracking-write source guard
 
 The source tracking-write guard still parses every sibling-plugin Python file,
@@ -259,13 +269,21 @@ capacity. Local pytest commands remain wrapped by the bounded test supervisor.
 
 ## Trusted metadata event partition
 
-The existing required metadata entrypoint covers actual source routing for
+The focused metadata entrypoint covers actual source routing for
 Dev synchronize, closed/retarget-away, body/label edits and unrelated bases:
 
 ```text
 python -m pytest -q tools/test_required_source_attribution_workflow.py
 node --test .github/actions/required-pr-attribution.test.cjs tools/test_copilot_review_gate.cjs
 ```
+
+The metadata wiring test checks the current unit-only CI profile through the
+canonical trusted-CI validator, including its ungated policy check, admitted
+unit execution and required aggregate. It does not require the retired
+dispatched-snapshot or exhaustive metadata-test steps to return to source CI.
+The Python/Git and JavaScript metadata suites above remain outside the admitted
+release-unit packet; their periodic enrollment is still an open portfolio
+obligation, not evidence supplied by a passing required PR check.
 
 The 72 event/base cases, job-boundary checks and real-Git admission shapes reuse
 the existing bounded fixtures, with no extra CI job. Source declarations come

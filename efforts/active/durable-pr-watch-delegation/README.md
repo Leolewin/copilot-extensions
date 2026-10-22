@@ -30,6 +30,12 @@ waiters and supported native PR operation remain working alternatives.
 
 ## Coordination
 
+The direct #2700/#2881 checkout-free operation matrix extends the existing #2400
+client/migration lane under the same effort host. Keep #7188 service/consumer, #7051
+conformance and Worktrees publication/resource and credential/provider claims bounded
+and unchanged. Continue through this Plan/Validation/Journal and eligible open bounded
+source claims, not a closed tracker or new generic sign-off rendezvous.
+
 - **Topology:** Serial, independently reviewable PRs against `dev`.
 - **Host (owns PRs):** Delegation driver.
 - **Delegates:** Any bounded implementation delegate receives an exclusive slice; the driver owns integration and completion.
@@ -153,6 +159,17 @@ preserving campaign/resource boundaries and resolving actual conflicts.
 It does not grant credentials, change deployment authority or authorize a
 rollout of unrelated machine components.
 
+Revocation failure contract, verbatim:
+
+> Treat revocation like any other network disconnect
+
+This supersedes the initially selected distributed-revocation-barrier approach.
+Policy withdrawal stops admission/emission and signals request cancellation;
+it does not wait for remote effect settlement or promise rollback. A commit
+already in flight remains uncertain and must reconcile its original identity.
+Known disconnected work must not start a subsequent lookup/commit, and existing
+transaction custody must remain held until that work actually settles.
+
 ## Plan
 
 ### Governed watch-owner cutover prerequisite
@@ -211,6 +228,14 @@ _Operator-required scope; agent-recommended implementation and validation._
   durable complete-envelope disk transactions, without activating a daemon,
   credentials or placement (confirmed by #7832). Production enrollment/effect
   fencing, observation, consumer and lifecycle acceptance remain below.
+- [x] Reuse the central native PR commands for thin-client status, checkout-free
+  creation, policy-gated completion and wait, preserving the default GitHub
+  interface without another forge adapter (confirmed by #7850). Broader client,
+  serving and deployed conformance remain below.
+- [x] Land and exercise connector-owned request lifetime through PR replay
+  lookup/commit/result boundaries. Treat current-policy withdrawal as network
+  disconnect, preserving uncertain in-flight commits and original-ID recovery
+  (source confirmed by #7915; provider and deployed acceptance remain open).
 - [ ] Define and deliver the [PR-service consumer contract](pr-service-contract.md)
   through normal reviewed source changes, including missing shared seams and
   real serving/consumer proof. Consult related campaigns without a separate
@@ -340,17 +365,95 @@ not silently enlarged into presentation or migration custody.
 No implementation, account/credential use, tests, native/model/host probe, install,
 runtime update, shared-resource operation or deployment is authorized by this checklist.
 
+### Direct checkout-free operation and inherited ADO matrix from #2700/#2881
+
+<!-- backlog-reconciliation:7556:transfer:2700:to:efforts/active/durable-pr-watch-delegation/README.md -->
+
+Add directly to the existing Active ROOT Plan and Validation beside the accepted2400
+client-convergence lane; do not replace any prior row or history. Actual foreign
+creation/watch/merge, explicit status/metadata-only bindings and bounded7850 native
+four-verb composition are credited baseline, not the full reviewer/legacy matrix.
+Preserve7051 conformance,7188 bounded service/consumer, Worktrees publication/resource
+and current credential/provider claims. Prior requests to keep checkout-free coverage
+open remain binding until this entire direct acceptance is actually delivered and read
+back; no feature is declared complete or source custodian changed.
+
+#### Plan
+
+- [ ] Reconcile EVERY relevant existing PR surface: create/track already-pushed remote
+  branches, status/watch, ready/update, merge/complete and supported reviewer
+  diff/comment/review/thread operations. Label each delivered, unsupported, incomplete
+  or unproven entry explicitly, including remaining checkout-free reviewer routes; four
+  verbs or a provider primitive alone are not entrypoint parity.
+- [ ] Address the target by canonical explicit repository/PR identity OR an approved URL
+  binding without a local TARGET checkout. Preserve the caller's own rightful
+  claimant/lifetime where required; never equate target-checkout independence with
+  removing caller completion/resource ownership.
+- [ ] Resolve target provider, hosting endpoint, repository/account identity, branch
+  convention and contribution/review policy from its admitted registered/metadata-only
+  binding. Missing, malformed, ambiguous, unreachable or unauthorized evidence must
+  refuse clearly, never use the caller's provider/config/account or a different target
+  as fallback.
+- [ ] Retain honest structured ADO build validation, applicable policy evaluations,
+  reviewer votes/approval events, active/unresolved threads, mergeability and terminal
+  outcomes through the shared provider-neutral surface. Unknown/unsupported evidence is
+  not a passing gate; votes, policy and human approval remain distinct.
+- [ ] Preserve actual target merge_actor, human-only/maintainer requirements, explicit
+  completion authority and accepted native gates. Author self-review, a self-merge
+  profile or a returned status cannot bypass real policy or grant missing approval.
+- [ ] Preserve already-pushed creation with an already-valid caller-supplied branch OR
+  admitted target convention, attribution, tracked PR identity and reciprocal
+  obligations. Never publish unrelated caller commits to the foreign target or import
+  foreign merged history into caller source merely because the PR is owned or observed.
+- [ ] Reuse established scoped credential-provider/relay/account boundaries without
+  hand-built auth/REST workarounds, ambient identity substitution or a second
+  watcher/client. Wait estimates and polling cadence remain separate from actual
+  provider gate evidence and completion ownership.
+- [ ] Continue this finite client/matrix lane through the existing effort host, direct
+  Plan/Validation/Journal and open bounded source coordination. Related claims keep
+  their scopes; source contributions use normal review/nonblocking consultation and
+  concrete conflict resolution, not a new generic owner-ACK gate. Keep native commands
+  useful before fleet adoption and staged2400 compatibility/deprecation sequencing
+  intact.
+
+#### Validation
+
+- [ ] Cover metadata-only/registered/unregistered/ambiguous target binding, no local
+  target checkout, correct caller/target distinction, ADO policy/build/vote/thread
+  states and multiple-provider parity through real owning front doors and bounded
+  contract fixtures. Credit actual7226/7850 witnesses at their stated limits; identify
+  remaining reviewer routes and missing native lanes rather than converting them into
+  pass or requiring unrelated entire fleet/installer campaigns.
+- [ ] Verify explicit target refusal, no caller/provider/account fallback, no foreign
+  source import/lost obligation, actual authority/role gates and existing
+  credential/observation ownership. No live provider mutation, account/authentication
+  probe or deployment is authorized by the matrix.
+- [ ] Before administrative closure, a NEW normal reviewed merge must accept EVERY
+  original2700 clause and all eight inherited2881 rows directly in this ROOT
+  Plan/Validation, followed by CURRENT FULL readback and live continuing
+  Coordination/Journal. Old2400/7189/7885 intake, a topic link, proposed patch or
+  source7850 alone is not this receipt. If the full intake is not accepted, retain2700.
+
 ## Validation Plan
+
+- [ ] Complete every directly retained #2700 Plan/Validation clause above at its original evidence tier and bounds; preserve current owners, holds and unfinished acceptance. Tracker consolidation is not implementation.
 
 - [ ] Complete every directly retained #2400 Plan/Validation clause above at its original evidence tier and bounds; preserve current owners, holds and accepted deferrals. Administrative supersession is not completion.
 
 All items below are **agent-recommended** acceptance checks.
 
+- [x] Native PR client: preserve provider evidence and central publication/claim/
+  merge gates; refuse invalid selection and blank pushed heads before effects;
+  prove option reparsing and final executable argument preservation (#7850).
 - [x] Unit: failing/nonzero/timeout callback stays pending; acknowledgement removes only its own registration; replay preserves event identity and payload; cancellation and re-registration are generation-safe (#6019, #7160 and #7714).
 - [x] Unit: durable event survives crash before delivery, crash after remote commit before acknowledgement, restart, and supported daemon cutover; unrelated subscribers continue to receive notifications (#6019, #7160 and #7714).
 - [x] Unit: already-terminal PR, finite timeout, polling outage, expired wait, and malformed inputs produce the intended explicit results (#6019 and #7714).
 - [x] Compatibility: old/new client, coordinator, and watch-owner combinations retain legacy schemas and a functioning process fallback; missing optional plugin affects only the optimization (#7714).
 - [ ] Credentials: explicit CLI credentials and command-backed configuration still authenticate; no credential value is persisted in callback argv, subscription state, result diagnostics, or logs.
+- [x] Service disconnect: real Gateway policy withdrawal and channel loss stop
+  later replay work, preserve custody of already-started commits, emit no false
+  success and reconcile the same request after fresh authorization/reconnect
+  (#7915; synthetic issuer and isolated real TLS/disk, not provider/deployment proof).
 - [x] Integration: real isolated watch owner and coordinator exercise subscribe/prepare/arm/finish, coordinator outage then recovery, duplicate delivery, stale-generation callback, and registration failure without a duplicate wait owner (#7714).
 - [x] Fresh state: the supported first-touch path establishes only the owning plugin's state; two independent subscribers share one PR observation stream and need no per-task waiter process (#7714; installed adoption acceptance remains a separate prerequisite).
 - [x] Platform: bounded callback launch and shutdown/restart behavior pass on Windows and Linux, using existing contained test tooling (exact-head source acceptance `39716960139`; installed native-account proof remains open).
@@ -379,12 +482,134 @@ callback an implicit credential store.
 
 ## Journal
 
+### 2026-10-22 - Bind PR observation credentials in the existing exchange
+
+- Added a distinct `pr-worker` credential role to the existing Gateway
+  broker/controller/worker exchange. It has no index corpus or index-query
+  authority. Exact provider/API-base/repository/observation/authentication
+  scope participates in rule selection, mandatory external provider
+  verification, signed request correlation and recipient-sealed material.
+- The recipient checks that typed scope before ACK. The legacy string-only
+  index token loader refuses it instead of erasing the target or confusing
+  ADO bearer material with a PAT. No issuer, broker, supervisor or forge
+  adapter was added; no runtime, credentials or placement were activated.
+- Validation: 464 cases pass across the new PR-credential tests and existing
+  Gateway worker/runtime/auth/fence/identity/process/manifest contracts.
+  Real isolated TLS/PoP/controller/broker/JWE/ACK calls prove fresh acquisition,
+  exact target and provider-result refusal, restart-policy revocation and
+  rejection before ACK of a wrongly scoped but validly signed sealed reply.
+  Fatal Python lint and all 13 install contracts pass.
+- Review identified that a retained pre-restart client could refuse due to
+  stale nonce/epoch rather than revocation. The corrected regression creates
+  a fresh client with the same principal and keys after restart, proving both
+  successful acquisition without revocation and refusal without provider use
+  when revoked. All 47 PR-credential cases pass after this test-only correction.
+- No installer/bootstrap path changed, so a new clean-room installation lane
+  is not applicable. No live provider, production credentials or external
+  deployment lane was exercised: this source-only SDK exchange has no
+  activated PR consumer, and source publication grants none of those changes.
+- This closes a source seam toward the PR vision's
+  `explicit-backends-and-credential-authority` and
+  `one-operator-with-separated-scopes` behaviors, following the existing
+  optional-integration and explicit-failure patterns. It does not close
+  the consumer-contract credential checkbox: native provider HTTP/CLI
+  effect-boundary renewal and actual production-provider validation remain.
+- The trace found that Worktrees captures GitHub credentials when building
+  a fetcher and ADO headers once per multi-request observation. The next
+  slice must reuse those native drivers while obtaining typed credentials
+  at each actual authenticated request, preserving explicit native CLI
+  behavior and refusing any service-side ambient fallback.
+
+### 2026-10-22 - Merge the reviewed disconnect boundary and retain service follow-through
+
+- #7915 merged as `d22e6e32f310a4a707cb6239fd89ea9d4f592ee2` at
+  `2026-10-22T18:36:19Z`, from published head
+  `359ec8692d92ef71d9ad2aaada1e0505a936a1c8`. Current-head Copilot review
+  `5619049618` approved with no open issues; its one prior finding was corrected
+  and resolved, and required checks were green. Managed completion used the
+  documented missing-additional-CODEOWNER exception, not a CI bypass.
+- The final 402-case Gateway/PR selection proves the real isolated serving
+  path, known-disconnect lookup/commit/result checkpoints, independent lifetimes,
+  timeout-before-cleanup ordering, retained disk custody and original-ID recovery.
+  This is source/synthetic-identity proof, not production credential, container
+  lifecycle, installed runtime or live fleet acceptance.
+- Re-read the complete parent Plan and Validation after merge, preserving all
+  retained #2400/#2700 intake and its bounded ownership. Closed only this source
+  disconnect slice and its matching validation. The effort remains Active.
+- Next: deliver the PR worker's real account/repository/action credential
+  binding through existing provider/Gateway owners, then the typed shared
+  service consumer and independently installable lifecycle. The static
+  credential profile currently admits only index workers; PR must not
+  impersonate that identity, invent a corpus, or add another issuer/controller.
+  Source merge authorizes no runtime update, credential acquisition or placement.
+
+### 2026-10-22 - Complete retained acceptance from #2700
+
+- Retained the complete #2700 scope directly in the Plan and Validation,
+  without declaring feature completion or transferring source/resource custody.
+  Normal reviewed merge and current full readback precede administrative
+  supersession; all substantive acceptance remains unfinished.
+
 ### 2026-10-22 - Complete retained acceptance from #2400
 
 - Retained the full #2400 remainder directly in the Plan and Validation,
   preserving delivered partials, existing source/resource custodians and gates.
   Reviewed actual merge and current full readback precede administrative
   supersession; no capability, native trial or adoption is declared complete.
+
+### 2026-10-22 - Treat service revocation as request disconnect
+
+- The operator clarified that revocation has ordinary network-disconnect
+  semantics, superseding a distributed revocation barrier. This closes the
+  design choice without changing the separate Gateway/service topology or
+  authorizing a listener, credential, placement or runtime rollout.
+- The connector supplies one local, non-wire request lifetime, closed before
+  cancellation/channel retirement and checked by the handler before response
+  emission. The PR adapter passes that same signal into its existing complete
+  replay transaction and retains shielded disk custody after disconnect.
+- Lookup, commit and result checkpoints refuse already-known disconnected work.
+  A write already started when withdrawal arrives may commit; response loss
+  never proves absence, resets the original deadline or permits a second wait.
+- The initial focused source run passes 106 cases; the complete affected
+  Gateway-profile and PR replay selection passes 400 cases. Real TLS/PoP/channel
+  tests withdraw policy and disconnect before lookup and inside the atomic
+  writer. They prove publication proceeds while the write is held and original-ID
+  reconciliation after reauthorization/reconnect. Review/current publication
+  gates remain pending; no production acceptance is claimed.
+- Review found that `wait_for()` joins a handler's cancellation cleanup before
+  raising its timeout. The connector now closes request lifetime before
+  cancelling and joining its separately owned response task. Deadline and
+  external-cancellation regressions inspect lifetime from inside held cleanup
+  and prove that the connector still joins it. The affected portfolio passes
+  402 cases after this correction.
+
+### 2026-10-22 - Merge the native client slice and continue the service contract
+
+- #7850 merged as `a750ccc3b446f7dea85f297143a61b48b2a0bb4d` at
+  `2026-10-22T11:14:01Z`. The final published head
+  `79901927c324a4d6bbd7012168085ac6c19ead46` received current-head
+  Copilot approval with no open issues; all six review threads were resolved
+  and every required check was green. The managed merge used the documented
+  Maintainer exception for the additional CODEOWNER vote, not a CI bypass.
+- Current focused source contracts passed: 149 tests, with 10 POSIX-only
+  process-lifetime cases skipped on Windows. The real Windows boundaries
+  include all four commands through final Python, separate consumer reparsing,
+  empty/quote/multiline/Unicode preservation and old-host refusal before effects.
+  Fatal lint, module-size and install-contract checks passed.
+- A PR-description edit temporarily removed its source marker. The attribution
+  check caught the actual missing metadata; the description was repaired using
+  the managed preparation command and its assigned public codename. Current
+  required attribution passed before merge; no dummy commit or bypass was used.
+- Re-read the complete Plan and Validation Plan after merge. Only the bounded
+  native client slice is closed. Promotion, authorized installed proof, actual
+  forge/credential parity and all fleet acceptance remain open; no running
+  runtime, credential, daemon or fleet placement changed.
+- Next: close the PR service's current policy/enrollment and effect-side
+  admission fence through the actual serving boundary, reusing the fleet-owned
+  contracts rather than treating the replay store's transaction lock or a
+  caller-context SDK as deployment/effect authority. Credentials, the shared
+  dispatch consumer, independently installable lifecycle and live acceptance
+  retain their own subsequent gates. This effort remains Active.
 
 ### 2026-10-22 - Reuse central native PR operations without a second provider
 
