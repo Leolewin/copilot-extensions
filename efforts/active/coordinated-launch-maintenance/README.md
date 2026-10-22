@@ -463,3 +463,36 @@ repository history.
   [39862177885](https://github.com/ThomasMichon/copilot-extensions/actions/runs/39862177885),
   exact source `186c0e3003231c7a22692f1bdbf36ae41ac5c5e1`.
   That result remains pending here; a retry dispatch is not a passing result.
+
+### 2026-10-22 - Native adoption progresses; activation remains unqualified
+
+- The second run rejected the registered principal's account-name form as if it
+  were a different owner. Normalized account names and SID strings through the
+  OS SID resolver, preserving exact principal ownership. Native PowerShell
+  mapping and adoption tests passed 26 cases without host registration.
+- Run
+  [39863715312](https://github.com/ThomasMichon/copilot-extensions/actions/runs/39863715312)
+  at `e01073ba24267f95c57a02e72a97769e27d50709` passed first/repeat adoption,
+  status and owned removal sufficiently to confirm cleanup. The fixture caller
+  then failed before IPC because its case-sensitive synthetic environment filter
+  dropped Windows' uppercased `SYSTEMROOT`. Corrected only the fixture allowlist;
+  retained credential exclusion and added three casing controls.
+- Run
+  [39864605984](https://github.com/ThomasMichon/copilot-extensions/actions/runs/39864605984)
+  at `8deff8d33e968c2b85bf68203c0a0656f989eaac` reached actual activation from
+  the nested caller, but the bounded scheduler adapter exceeded its unchanged
+  thirty-second deadline before returning control. Owned cleanup was confirmed;
+  no resident cycle or production pipe handoff passed. This is the current
+  native blocker, not a successful lifetime result.
+- Narrow read-only controls proved that the filtered caller environment can
+  initialize the scheduler COM connection, read the exact adapter's JSON stdin
+  and refuse an absent task under caller Job containment. No task was created or
+  started on the shared host. Diagnose the actual activation wait with bounded,
+  fixed diagnostics rather than increase the deadline, infer independent
+  lifetime or proceed to normal-launch adoption.
+- Added an unqualified negative-topology fixture in the repair worktree:
+  distinct immediate Jobs under one shared outer Job must fail the canonical
+  child offer, and the native control must die when the outer handle closes.
+  Positive controls now close actual caller Job handles rather than use
+  termination as a proxy. Source/admission tests passed 15 cases; the new
+  topology has not yet run on the disposable Windows lane.
