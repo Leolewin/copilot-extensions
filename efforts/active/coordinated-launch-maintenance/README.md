@@ -109,13 +109,13 @@ the requested coordinated-background behavior.
 - [ ] Repair the #6859 follow-up in owned source, then requalify the containing
   launch change. _(Operator-directed prerequisite; implementation mechanism is
   agent-recommended.)_
-- [ ] Move optional stage/bootstrap/reconcile work off the healthy handoff path
+- [x] Move optional stage/bootstrap/reconcile work off the healthy handoff path
   on both PowerShell and Bash; remove the join and inline-download fallback
   from ordinary launches. Preserve explicit blocking recovery behavior.
 - [ ] Use one bounded on-demand owner and durable pending requests. Coalesce
   equivalent requests without losing a different project, repository, source,
   installation context or stronger requested operation.
-- [ ] Share operation custody with explicit update/reconcile entrypoints;
+- [x] Share operation custody with explicit update/reconcile entrypoints;
   retain canonical installer locks and execution admission. A busy owner is
   pending work, not permission for another installer.
 - [ ] Preserve exact action argv, scoped environment/unsets and project
@@ -127,7 +127,7 @@ the requested coordinated-background behavior.
 - [ ] Make queued/running/failed/completed outcomes inspectable and truthful.
   Interrupted work must not be reported complete or retried over a possibly
   surviving child without ownership/completion evidence.
-- [ ] Preserve `WORKTREE_NO_UPDATE` and `WORKTREE_NO_RECONCILE` independently,
+- [x] Preserve `WORKTREE_NO_UPDATE` and `WORKTREE_NO_RECONCILE` independently,
   explicit update behavior, clean JSON/stdout and required first-use safety.
   Missing prerequisites cannot be called a healthy launch merely to avoid waiting.
 
@@ -354,3 +354,27 @@ repository history.
 - The operator selected `reuse-merged-driver`. Continue by reworking this
   effort's own draft around #7860, not by retaining a second execution owner
   or declaring the remaining responsive-launch and broker gates complete.
+
+### 2026-10-22 - Reuse the execution owner for automatic maintenance
+
+- Preserved the original draft and qualification work in a local backup before
+  reworking it around merged #7860. The replacement has no separate maintenance
+  queue, worker implementation or mutation lock.
+- Added fixed `launch-update automatic` execution inside the existing driver.
+  Healthy native launchers submit it with `--detach`, then proceed without a
+  shell-owned stage, installer join or inline-download fallback. Explicit
+  blocking recovery keeps the existing fixed-phase path and progress handling.
+- Acquisition now uses bounded caller-owned process control and records its
+  real exit outcome. Automatic acquisition refusal, publication refusal and
+  phase failure produce failed durable outcomes rather than installation
+  success. Update and reconciliation opt-outs remain independent.
+- The actual Windows shell, canonical request boundary, finite driver,
+  bootstrap executor and a gated fixture installer proved four handoffs before
+  the installer gate opened. Equivalent pending requests coalesced without
+  losing another project's request, and both projects completed after release
+  of the gate under the same execution owner.
+- The final contained composed suite passed 140 tests with 15 explicit
+  platform/lifetime skips, including canonical sandbox retirement. Installer
+  contracts passed for all thirteen plugins. This is real handoff/queue proof,
+  not caller-Job survival, a registered broker test or installed qualification.
+  Native POSIX and the independent Windows broker lanes remain open.

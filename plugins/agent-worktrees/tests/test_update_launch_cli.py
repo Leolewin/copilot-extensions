@@ -14,7 +14,10 @@ from agent_worktrees import update_driver_json_cli as boundary
 
 def _args(**values):
     return argparse.Namespace(
-        **dict(phase="bootstrap", status=None, snapshot=None, detach=False, defer_worktrees=False)
+        **dict(
+            phase="bootstrap", status=None, snapshot=None, detach=False, defer_worktrees=False,
+            no_update=False, with_reconcile=False,
+        )
         | values,
     )
 
@@ -31,6 +34,89 @@ def test_fixed_phase_has_no_external_action_protocol(monkeypatch):
     assert seen == dict(
         verb="launch-update", flags=["bootstrap", "--defer-worktrees"], execute=launch._execute,
     )
+
+
+def test_automatic_submission_uses_the_existing_execution_owner(monkeypatch):
+    seen = []
+    monkeypatch.setattr(boundary, "_run_request", lambda verb, flags, args, execute: (
+        seen.append((verb, flags, args.detach, execute)) or 0
+    ))
+    assert launch.cmd_launch_update(_args(
+        phase="automatic", detach=True, no_update=True, with_reconcile=True,
+    )) == 0
+    assert seen == [(
+        "launch-update", ["automatic", "--no-update", "--with-reconcile"], True, launch._execute,
+    )]
+
+
+@pytest.mark.parametrize("no_update,with_reconcile,changed,expected", [
+    (False, True, True, ["bootstrap", "reconcile", "staged"]),
+    (False, False, True, ["bootstrap", "staged"]),
+    (False, True, False, ["bootstrap", "reconcile"]),
+    (True, True, False, ["reconcile"]),
+    (True, False, False, []),
+])
+def test_automatic_work_runs_only_after_dispatch_under_one_custody(
+    monkeypatch, tmp_path, capsys, no_update, with_reconcile, changed, expected,
+):
+    acquired, executed = [], []
+    status = tmp_path / "owned-stage.json"
+    monkeypatch.setattr(launch.update_stage, "status_path", lambda: status)
+    monkeypatch.setattr(launch.update_stage, "stage", lambda: (
+        acquired.append(True) or dict(stage_done=True, acquisition_ok=True, plugin_changed=changed)
+    ))
+    monkeypatch.setattr(launch, "_staged_snapshot", lambda path: ({}, "fresh-digest"))
+    monkeypatch.setattr(boundary, "_run_request", lambda *a: pytest.fail("recursive submission"))
+
+    def execute(args):
+        executed.append(args)
+        print(json.dumps({"phase": args.phase, "executed": []}))
+        return 0
+
+    monkeypatch.setattr(launch, "_execute_phase", execute)
+    assert launch._execute(_args(
+        phase="automatic", no_update=no_update, with_reconcile=with_reconcile,
+    )) == 0
+    assert acquired == ([] if no_update else [True])
+    assert [args.phase for args in executed] == expected
+    if changed and not no_update:
+        assert executed[0].defer_worktrees is True
+        assert executed[-1].status == str(status)
+        assert executed[-1].snapshot == "fresh-digest"
+    result = json.loads(capsys.readouterr().out)
+    assert [item["phase"] for item in result["executed"]] == expected
+
+
+@pytest.mark.parametrize("stage", [
+    {"stage_done": False},
+    {"stage_done": True, "skipped": "locked"},
+    {"stage_done": True, "acquisition_ok": False},
+    {"stage_done": True, "runtime_apply_blocked": "deployment-managed"},
+])
+def test_automatic_acquisition_refusal_never_starts_installers(monkeypatch, capsys, stage):
+    monkeypatch.setattr(launch.update_stage, "stage", lambda: stage)
+    monkeypatch.setattr(launch, "_execute_phase", lambda *a: pytest.fail("installer started"))
+    assert launch._execute(_args(phase="automatic", with_reconcile=True)) == 1
+    assert json.loads(capsys.readouterr().out)["reason"] == "launch-phase-invalid"
+
+
+@pytest.mark.parametrize("failed", ["bootstrap", "reconcile", "staged"])
+def test_automatic_phase_failure_is_not_a_successful_completion(monkeypatch, capsys, failed):
+    monkeypatch.setattr(launch.update_stage, "stage", lambda: dict(
+        stage_done=True, acquisition_ok=True, plugin_changed=True,
+    ))
+    monkeypatch.setattr(launch, "_staged_snapshot", lambda path: ({}, "digest"))
+    executed = []
+
+    def execute(args):
+        executed.append(args.phase)
+        print(json.dumps({"executed": []}))
+        return 7 if args.phase == failed else 0
+
+    monkeypatch.setattr(launch, "_execute_phase", execute)
+    assert launch._execute(_args(phase="automatic", with_reconcile=True)) == 1
+    assert executed[-1] == failed
+    assert json.loads(capsys.readouterr().out)["executed"][-1]["returncode"] == 7
 
 
 def test_reconcile_phase_calls_canonical_executor_only_under_request_custody(monkeypatch):
@@ -76,6 +162,11 @@ def test_fixed_cli_discovers_optional_project_from_cwd(tmp_path, monkeypatch, ph
 @pytest.mark.parametrize("phase,options", [
     ("bootstrap", {"status": "untrusted.json"}),
     ("staged", {"defer_worktrees": True}),
+    ("bootstrap", {"no_update": True}),
+    ("reconcile", {"with_reconcile": True}),
+    ("automatic", {"status": "untrusted.json"}),
+    ("automatic", {"snapshot": "foreign"}),
+    ("automatic", {"defer_worktrees": True}),
 ])
 def test_invalid_phase_options_never_submit(tmp_path, monkeypatch, capsys, phase, options):
     monkeypatch.setattr(launch, "_staged_snapshot", lambda path: ({}, "digest"))
