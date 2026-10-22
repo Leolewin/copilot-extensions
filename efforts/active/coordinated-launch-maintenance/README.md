@@ -86,6 +86,12 @@ The selected option was "Authorize the source-level broker redesign; keep
 deployment separately gated". This authorizes source design and implementation,
 not installation, task/service registration, a host update or live rollout.
 
+Launch-overlap form selection (verbatim): `reuse-merged-driver`.
+The selected option was "Rework our draft around the merged execution driver
+(recommended)". Reuse #7860's canonical execution front door and retain only the
+remaining off-handoff scheduling work plus the independent #6859 broker repair.
+This does not expand deployment authority.
+
 ## Plan
 
 ### Phase 1 - Reviewed contract
@@ -97,7 +103,7 @@ not installation, task/service registration, a host update or live rollout.
 The following implementation choices are **agent-recommended** mechanisms for
 the requested coordinated-background behavior.
 
-- [ ] Review the [independent Windows broker amendment](windows-launch-broker.md)
+- [x] Review the [independent Windows broker amendment](windows-launch-broker.md)
   before implementing its lifecycle and consumer integration. No deployment is
   implied.
 - [ ] Repair the #6859 follow-up in owned source, then requalify the containing
@@ -299,3 +305,52 @@ repository history.
   topology, lifecycle and transport choices remain agent-recommended mechanisms.
 - Do not register or start a host task/service, install a candidate, restart
   shared services, or launch a competing updater under this authorization.
+
+### 2026-10-22 - Broker design review complete
+
+- #7910 merged as `8b1437d07f9808a48009a2683d7bff394fd70e56` after an
+  exact-head Copilot approval and successful required CI. The managed merge
+  command timed out after the provider accepted it; a separate scoped provider
+  read confirmed `MERGED`, rather than blindly retrying the mutation.
+- Re-read this effort's Plan and Validation Plan. Only the design-review
+  prerequisite is closed. Actual broker implementation, independent native
+  activation/transfer proof, consumer integration, release and authorized
+  rollout remain open; a reviewed plan is not an implemented broker.
+- The repair source now retains retryable query-Job/member-handle custody,
+  checks the deadline within its census, and isolates synthetic PIDs. The full
+  composed shared suite passed 455 tests with 30 platform/lane skips, including
+  canonical sandbox retirement. These corrections do not resolve the remaining
+  ancestor-Job proof boundary by themselves.
+- Start the broker implementation from the reviewed contract, preserving the
+  source-only boundary. The plan-only source's pull-forward helper refused a
+  deleted PR ref; its merged provider state is confirmed and its checkout is
+  retained, not manually reset or removed.
+
+### 2026-10-22 - Reconcile the merged launch execution front door
+
+- Pulled the independent repair forward, preserving #7860's newly merged
+  caller-Job guard and cancellation handling. The two owned repair commits
+  are now based on current Dev; the independent broker is not implemented.
+- #7860 also routes native launch bootstrap, reconciliation and staged apply
+  through the canonical execution driver. Its launchers still join optional
+  preparation before session handoff, so the responsive-launch objective is
+  not closed. However, this effort's draft #7788 now overlaps a merged
+  implementation and retains competing maintenance custody.
+- Pause that substantive integration choice for operator direction rather
+  than silently supersede the draft or restore its separate execution owner.
+  The recommended continuation is to reuse the merged execution front door
+  and narrow this effort's implementation to off-handoff scheduling plus the
+  independent #6859 lifetime repair.
+- The rebased shared assertions passed 467 tests with 30 skips. The outer
+  sandbox retirement failed on an installed fixture image; all 90 recorded
+  process birth identities were subsequently confirmed exited and the exact
+  retained sandbox was removed. This is not a green full-runner result or a
+  failure waiver. The focused lint check passed.
+- Task Scheduler's documented engine PID is not an action-process identity
+  guarantee. Do not assume equality or use task registration alone as the
+  independent activation proof. Native activation and lifecycle qualification
+  still require an approved disposable Windows lane; this work has registered
+  no task, changed no installation and restarted no service.
+- The operator selected `reuse-merged-driver`. Continue by reworking this
+  effort's own draft around #7860, not by retaining a second execution owner
+  or declaring the remaining responsive-launch and broker gates complete.
