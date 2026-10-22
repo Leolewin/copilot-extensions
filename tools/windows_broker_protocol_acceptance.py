@@ -67,7 +67,84 @@ def caller(package_root: Path, root: Path) -> int:
     return 0
 
 
+def make_job(pu, owners):
+    api = pu._kernel32()
+    pu._configure_job_api(api)
+    handle = api.CreateJobObjectW(None, None)
+    if not handle:
+        raise ctypes.WinError(ctypes.get_last_error())
+    owner = pu.JobHandle(handle)
+    owners.append(owner)
+    limits = pu._build_job_extended_limit_info()()
+    limits.BasicLimitInformation.LimitFlags = pu._JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+    if not api.SetInformationJobObject(
+        handle, pu._JobObjectExtendedLimitInformation, ctypes.byref(limits),
+        ctypes.sizeof(limits),
+    ):
+        raise ctypes.WinError(ctypes.get_last_error())
+    return owner
+
+
+def close_job(pu, owner):
+    if not pu._kernel32().CloseHandle(owner.handle):
+        raise ctypes.WinError(ctypes.get_last_error())
+    owner._handle = None
+
+
+def negative_topology(root, pu, processes, children, jobs):
+    from agent_procutil import DaemonSpawnError
+    from agent_procutil.daemon_broker import _kernel32 as process_api
+    from agent_procutil.windows_broker_native import NativeChild, _duplicate
+    from zdd.private_windows_native import native
+
+    outer = make_job(pu, jobs)
+    inners = [make_job(pu, jobs), make_job(pu, jobs)]
+    controls = []
+    api = pu._kernel32()
+    for inner in inners:
+        process = subprocess.Popen(
+            [str(Path(sys.base_prefix) / "python.exe"), "-I", "-c", "import time;time.sleep(30)"],
+            cwd=root, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, close_fds=True, creationflags=0x08000000 | 4,
+        )
+        processes.append(process)
+        controls.append(process)
+        for owner in (outer, inner):
+            if not api.AssignProcessToJobObject(owner.handle, int(process._handle)):
+                raise ctypes.WinError(ctypes.get_last_error())
+    for process, same, other in (
+        (controls[0], inners[0], inners[1]), (controls[1], inners[1], inners[0]),
+    ):
+        for owner, expected in ((outer, True), (same, True), (other, False)):
+            member = ctypes.c_int32()
+            if not process_api().IsProcessInJob(
+                int(process._handle), owner.handle, ctypes.byref(member),
+            ) or bool(member.value) is not expected:
+                raise RuntimeError("negative fixture topology not established")
+    candidate = controls[1]
+    handle = _duplicate(native().k.GetCurrentProcess(), int(candidate._handle))
+    child = NativeChild.from_handle(handle, candidate.pid, ["shared-outer-negative-control"])
+    children.append(child)
+    try:
+        child.offer()
+    except DaemonSpawnError:
+        pass
+    else:
+        raise RuntimeError("shared-outer candidate received durable-success offer")
+    close_job(pu, outer)
+    for process in controls:
+        process.wait(timeout=5)
+    for inner in inners:
+        inner.terminate_and_wait(5)
+    child.close()
+    return {
+        "shared_outer": True, "different_immediate_jobs": True,
+        "durable_success_refused": True, "control_died_with_outer": True,
+    }
+
+
 def inspect(root: Path) -> dict[str, object]:
+    admit(root, True)
     source = Path(__file__).resolve().parents[1]
     packages = root / "immutable" / "site-packages"
     packages.mkdir(parents=True)
@@ -119,6 +196,7 @@ def inspect(root: Path) -> dict[str, object]:
         first_status = task_operation("status", config, Deadline(10))
         if first_status.get("configured") is not True:
             raise RuntimeError("fixture adoption was not configured")
+        result["negative_topology"] = negative_topology(root, pu, callers, children, jobs)
         for cycle in range(2):
             offer_path = root / "caller-offer.json"
             offer_path.unlink(missing_ok=True)
@@ -142,17 +220,8 @@ def inspect(root: Path) -> dict[str, object]:
             jobs.append(outer)
             api = pu._kernel32()
             pu._configure_job_api(api)
-            inner = api.CreateJobObjectW(None, None)
-            if not inner:
-                raise ctypes.WinError(ctypes.get_last_error())
-            inner_owner = pu.JobHandle(inner)
-            jobs.append(inner_owner)
-            limits = pu._build_job_extended_limit_info()()
-            limits.BasicLimitInformation.LimitFlags = pu._JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-            if not api.SetInformationJobObject(
-                inner, pu._JobObjectExtendedLimitInformation, ctypes.byref(limits),
-                ctypes.sizeof(limits),
-            ) or not api.AssignProcessToJobObject(inner, int(process._handle)):
+            inner_owner = make_job(pu, jobs)
+            if not api.AssignProcessToJobObject(inner_owner.handle, int(process._handle)):
                 raise ctypes.WinError(ctypes.get_last_error())
             process.stdin.write("launch\n")
             process.stdin.flush()
@@ -175,8 +244,8 @@ def inspect(root: Path) -> dict[str, object]:
                 or actual.start_time != offer["birth"] or not _outside_job(child)
             ):
                 raise RuntimeError("fixture actual child identity or lifetime refused")
-            inner_owner.terminate_and_wait(5)
-            outer.terminate_and_wait(5)
+            close_job(pu, inner_owner)
+            close_job(pu, outer)
             process.wait(timeout=5)
             for _ in range(2):
                 try:

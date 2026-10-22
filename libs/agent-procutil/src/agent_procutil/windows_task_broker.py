@@ -29,6 +29,11 @@ CONFIG_ENV = "AGENT_PROCUTIL_WINDOWS_BROKER_CONFIG"
 OWNER_ENV = "AGENT_PROCUTIL_WINDOWS_BROKER_OWNER"
 _SCHEMA = "agent-procutil.windows-launch-broker"
 _NONCE = re.compile(r"[0-9a-f]{64}")
+_ACTIVATION_PHASES = frozenset({
+    "input", "principal", "connect", "folder", "lookup", "validated",
+    "run-requested", "run-returned", "engine-ready", "revalidated",
+    "process", "birth", "response",
+})
 
 
 @dataclass(frozen=True)
@@ -149,16 +154,28 @@ def task_operation(
     powershell = Path(os.environ["SystemRoot"]) / (
         r"System32\WindowsPowerShell\v1.0\powershell.exe"
     )
-    result = run_caller_owned(
-        [
-            str(powershell), "-NoProfile", "-NonInteractive", "-File",
-            str(Path(__file__).with_name("windows_broker_task.ps1")), "-Action", action,
-        ],
-        timeout=deadline.remaining(), max_stdout_bytes=65536, max_stderr_bytes=65536,
-        input_text=json.dumps({"config": config.task(), **metadata}, ensure_ascii=True),
-    )
+    try:
+        result = run_caller_owned(
+            [
+                str(powershell), "-NoProfile", "-NonInteractive", "-File",
+                str(Path(__file__).with_name("windows_broker_task.ps1")), "-Action", action,
+            ],
+            timeout=deadline.remaining(), max_stdout_bytes=65536, max_stderr_bytes=65536,
+            input_text=json.dumps({"config": config.task(), **metadata}, ensure_ascii=True),
+        )
+    except subprocess.TimeoutExpired as error:
+        phase = "unobserved"
+        for line in (error.stderr or b"").splitlines():
+            for candidate in _ACTIVATION_PHASES:
+                if line == ("broker-phase:" + candidate).encode("ascii"):
+                    phase = candidate
+                    break
+        raise _refuse("task " + action + " timed out (phase=" + phase + ")") from None
     if result.returncode != 0:
-        reason = result.stderr.strip()
+        reason = "\n".join(
+            line for line in result.stderr.splitlines()
+            if line not in {"broker-phase:" + phase for phase in _ACTIVATION_PHASES}
+        ).strip()
         allowed = {
             "broker-registration-owner-refused", "broker-registration-action-refused",
             "broker-registration-principal-refused", "broker-registration-policy-refused",

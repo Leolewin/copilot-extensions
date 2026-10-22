@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 from zdd.private_protocol import PeerIdentity
+from zdd.private_protocol import Deadline
 
 from agent_procutil import DaemonSpawnError
 from agent_procutil import windows_task_broker as task
@@ -146,6 +150,36 @@ def test_rendezvous_is_bounded_local_and_unique():
         task.pipe_path(config, "a\\b")
 
 
+@pytest.mark.parametrize("stderr,phase", [
+    (b"broker-phase:run-requested\r\n", "run-requested"),
+    (b"broker-phase:run-requested\r\nbroker-phase:run-returned\r\n", "run-returned"),
+    (b"private-value\r\nbroker-phase:private-value\r\n", "unobserved"),
+    (b"broker-phase:run-requested\r\nprivate-value\xff\r\n", "run-requested"),
+    (None, "unobserved"),
+])
+def test_activation_timeout_discloses_only_last_fixed_phase(monkeypatch, stderr, phase):
+    monkeypatch.setattr(task, "os", SimpleNamespace(name="nt", environ={"SystemRoot": r"C:\Windows"}))
+    monkeypatch.setattr(task.Registration, "validate_files", lambda config: None)
+    monkeypatch.setattr(task, "run_caller_owned", Mock(side_effect=subprocess.TimeoutExpired(
+        ["safe-command"], 30, b"private-value", stderr,
+    )))
+    with pytest.raises(DaemonSpawnError, match="timed out") as caught:
+        task.task_operation("activate", registration(), Deadline(30))
+    assert "phase=" + phase in str(caught.value)
+    assert "private-value" not in str(caught.value)
+    assert caught.value.__suppress_context__
+
+
+def test_fixed_activation_phases_do_not_hide_native_refusal(monkeypatch):
+    monkeypatch.setattr(task, "os", SimpleNamespace(name="nt", environ={"SystemRoot": r"C:\Windows"}))
+    monkeypatch.setattr(task.Registration, "validate_files", lambda config: None)
+    monkeypatch.setattr(task, "run_caller_owned", Mock(return_value=subprocess.CompletedProcess(
+        ["safe-command"], 1, "", "broker-phase:run-requested\nbroker-activation-deadline\n",
+    )))
+    with pytest.raises(DaemonSpawnError, match="broker-activation-deadline"):
+        task.task_operation("activate", registration(), Deadline(30))
+
+
 def spawn_fixture(monkeypatch, activation=None):
     config = registration()
     monkeypatch.delenv("COPILOT_EXTENSIONS_TEST_CONTAINED", raising=False)
@@ -251,6 +285,33 @@ $function = $ast.Find({
         input_text=str(Path(task.__file__).with_name("windows_broker_task.ps1")),
         timeout=15, max_stdout_bytes=65536, max_stderr_bytes=65536,
     )
+
+
+def test_activation_phase_calls_match_the_fixed_diagnostic_allowlist():
+    source = Path(task.__file__).with_name("windows_broker_task.ps1").read_text(encoding="utf-8")
+    assert set(re.findall(r"Write-ActivationPhase '([^']+)'", source)) == task._ACTIVATION_PHASES
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Native Windows PowerShell fixed phase diagnostics")
+def test_activation_phase_writer_refuses_unlisted_data_and_is_inert_for_other_actions():
+    result = native_function(
+        "Write-ActivationPhase",
+        r"""
+$Action = 'status'
+Write-ActivationPhase 'input'
+$Action = 'activate'
+Write-ActivationPhase 'run-requested'
+try {
+    Write-ActivationPhase 'private-value'
+    throw 'unexpected admission'
+} catch [System.Management.Automation.ParameterBindingException] {
+    [Console]::Out.Write('refused')
+}
+""",
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "refused"
+    assert result.stderr == "broker-phase:run-requested\n"
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Native Windows PowerShell exception mapping")

@@ -30,6 +30,15 @@ def test_protocol_caller_refuses_shared_host_before_loading_runtime(monkeypatch,
     protocol_probe.imports.assert_not_called()
 
 
+def test_protocol_direct_inspection_cannot_bypass_shared_host_refusal(monkeypatch, tmp_path):
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    copy = Mock(side_effect=AssertionError("fixture escaped admission"))
+    monkeypatch.setattr(protocol_probe.shutil, "copytree", copy)
+    with pytest.raises(RuntimeError, match="ephemeral Windows CI consent"):
+        protocol_probe.inspect(tmp_path)
+    copy.assert_not_called()
+
+
 @pytest.mark.parametrize("name", ["SYSTEMROOT", "SystemRoot", "systemroot"])
 def test_protocol_fixture_preserves_case_insensitive_windows_prerequisites(name):
     result = protocol_probe.fixture_environment({

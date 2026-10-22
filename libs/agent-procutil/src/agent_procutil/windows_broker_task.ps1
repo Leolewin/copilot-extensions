@@ -6,6 +6,17 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+function Write-ActivationPhase(
+    [ValidateSet(
+        'input', 'principal', 'connect', 'folder', 'lookup', 'validated',
+        'run-requested', 'run-returned', 'engine-ready', 'revalidated',
+        'process', 'birth', 'response'
+    )]
+    [string]$Phase
+) {
+    if ($Action -eq 'activate') { [Console]::Error.WriteLine('broker-phase:' + $Phase) }
+}
+
 function Resolve-TaskPrincipalSid([string]$Principal) {
     if ($Principal -match '^S-1-') {
         return ([Security.Principal.SecurityIdentifier]::new($Principal)).Value
@@ -66,13 +77,18 @@ function Wait-Drained($Task) {
 $rollbackXml = $null
 $newRegistration = $false
 try {
+    Write-ActivationPhase 'input'
     $inputValue = [Console]::In.ReadToEnd() | ConvertFrom-Json
     $c = $inputValue.config
+    Write-ActivationPhase 'principal'
     $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
     if ($sid -cne $c.principal) { throw 'broker-principal-refused' }
+    Write-ActivationPhase 'connect'
     $service = New-Object -ComObject 'Schedule.Service'
     $service.Connect()
+    Write-ActivationPhase 'folder'
     $folder = $service.GetFolder('\')
+    Write-ActivationPhase 'lookup'
     $task = Find-OwnedTask $folder $c
     if ($Action -eq 'install' -or $Action -eq 'update') {
         if ($null -ne $task) {
@@ -123,14 +139,17 @@ try {
     } else {
         Assert-Action $task $c
     }
+    Write-ActivationPhase 'validated'
     if ($Action -eq 'activate') {
         if (-not $task.Enabled) { throw 'broker-admission-disabled' }
         # Only public rendezvous and process identity cross the scheduler.
         # Credentials/argv/environment travel later through the native pipe.
+        Write-ActivationPhase 'run-requested'
         $running = $task.RunEx(
             @($inputValue.nonce, [string]$inputValue.client_pid, $inputValue.client_birth),
             0, 0, $null
         )
+        Write-ActivationPhase 'run-returned'
         $timer = [Diagnostics.Stopwatch]::StartNew()
         do {
             $running.Refresh()
@@ -138,19 +157,24 @@ try {
             if ($timer.Elapsed.TotalSeconds -ge 10) { throw 'broker-activation-deadline' }
             Start-Sleep -Milliseconds 25
         } while ($true)
+        Write-ActivationPhase 'engine-ready'
         Assert-Action (Find-OwnedTask $folder $c) $c
+        Write-ActivationPhase 'revalidated'
         $process = [Diagnostics.Process]::GetProcessById([int]$running.EnginePID)
+        Write-ActivationPhase 'process'
         try {
             $birth = $process.StartTime.ToUniversalTime().ToFileTimeUtc().ToString()
         } finally {
             $process.Dispose()
         }
+        Write-ActivationPhase 'birth'
         [ordered]@{
             instance = [string]$running.InstanceGuid
             pid = [int]$running.EnginePID
             birth = $birth
             principal = $sid
         } | ConvertTo-Json -Compress
+        Write-ActivationPhase 'response'
     } elseif ($Action -eq 'stop' -or $Action -eq 'uninstall') {
         $task.Enabled = $false
         Wait-Drained $task

@@ -366,6 +366,11 @@ def _communicate_windows_bounded(
     if cleanup_error is not None:
         raise OwnedCleanupError(process, job) from cleanup_error
     if primary:
+        if isinstance(primary[0], subprocess.TimeoutExpired):
+            # Readers have joined and retirement succeeded; preserve raw,
+            # budgeted evidence without decoding or adding it to the message.
+            primary[0].output = bytes(output[0]) if process.stdout is not None else None
+            primary[0].stderr = bytes(output[1]) if process.stderr is not None else None
         raise primary[0]
     return tuple(
         data.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")

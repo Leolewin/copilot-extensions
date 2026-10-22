@@ -105,6 +105,39 @@ def test_blocked_input_obeys_absolute_timeout_and_original_command():
     assert caught.value.timeout == 0.5
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows bounded pipe timeout evidence")
+def test_windows_timeout_retains_bounded_raw_partial_streams_after_retirement():
+    with pytest.raises(subprocess.TimeoutExpired) as caught:
+        _run(
+            "import os,time;os.write(1,b'partial\\xff');"
+            "os.write(2,b'phase\\r\\n');time.sleep(60)",
+            timeout=5,
+        )
+    assert caught.value.stdout == b"partial\xff"
+    assert caught.value.stderr == b"phase\r\n"
+    assert "partial\xff" not in str(caught.value)
+    assert "phase\r\n" not in str(caught.value)
+
+
+def test_windows_timeout_after_stream_eof_retains_raw_bytes():
+    def expired():
+        raise subprocess.TimeoutExpired(["fixture"], 1)
+
+    process = SimpleNamespace(
+        stdin=None, stdout=io.BytesIO(b"partial\xff"), stderr=io.BytesIO(b"phase\r\n"),
+        poll=expired, wait=lambda **kwargs: 0, retire_job=lambda job, timeout: None,
+    )
+    with pytest.raises(subprocess.TimeoutExpired) as caught:
+        ownership._communicate_windows_bounded(
+            process, object(), input_text=None, deadline=time.monotonic() + 5,
+            argv=["fixture"], timeout=1, capture_limits=(32, 32),
+        )
+    assert caught.value.output == b"partial\xff"
+    assert caught.value.stderr == b"phase\r\n"
+    assert "partial" not in str(caught.value)
+    assert "phase" not in str(caught.value)
+
+
 @native_execution
 def test_child_closing_stdin_early_preserves_result():
     result = _run(
