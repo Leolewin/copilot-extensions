@@ -225,11 +225,7 @@ def test_packaged_scheduler_adapter_is_declared():
     ]
 
 
-@pytest.mark.skipif(os.name != "nt", reason="Native Windows PowerShell exception mapping")
-@pytest.mark.parametrize("missing", [False, True])
-def test_first_adoption_distinguishes_missing_task_from_access_failure(missing):
-    # Execute only the parsed lookup function with a synthetic folder. No COM
-    # connection, registration, activation or host task is needed by this test.
+def native_function(name, program):
     command = r"""
 $ErrorActionPreference = 'Stop'
 $path = [Console]::In.ReadToEnd()
@@ -240,9 +236,29 @@ if ($errors) { throw 'fixture parse failed' }
 $function = $ast.Find({
     param($node)
     $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
-        $node.Name -eq 'Find-OwnedTask'
+        $node.Name -eq 'FUNCTION_NAME'
 }, $true)
 . ([scriptblock]::Create($function.Extent.Text))
+"""
+    powershell = Path(os.environ["SystemRoot"]) / (
+        r"System32\WindowsPowerShell\v1.0\powershell.exe"
+    )
+    return run_caller_owned(
+        [
+            str(powershell), "-NoProfile", "-NonInteractive", "-Command",
+            command.replace("FUNCTION_NAME", name) + program,
+        ],
+        input_text=str(Path(task.__file__).with_name("windows_broker_task.ps1")),
+        timeout=15, max_stdout_bytes=65536, max_stderr_bytes=65536,
+    )
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Native Windows PowerShell exception mapping")
+@pytest.mark.parametrize("missing", [False, True])
+def test_first_adoption_distinguishes_missing_task_from_access_failure(missing):
+    # Execute only the parsed lookup function with a synthetic folder. No COM
+    # connection, registration, activation or host task is needed by this test.
+    program = r"""
 Add-Type 'public sealed class SyntheticTaskFolder {
     public object GetTask(string name) {
         throw new EXCEPTION_TYPE("synthetic lookup failure");
@@ -257,17 +273,26 @@ try {
     [Console]::Out.Write('refused')
 }
 """
-    command = command.replace(
+    program = program.replace(
         "EXCEPTION_TYPE",
         "System.IO.FileNotFoundException" if missing else "System.UnauthorizedAccessException",
     )
-    powershell = Path(os.environ["SystemRoot"]) / (
-        r"System32\WindowsPowerShell\v1.0\powershell.exe"
-    )
-    result = run_caller_owned(
-        [str(powershell), "-NoProfile", "-NonInteractive", "-Command", command],
-        input_text=str(Path(task.__file__).with_name("windows_broker_task.ps1")),
-        timeout=15, max_stdout_bytes=65536, max_stderr_bytes=65536,
-    )
+    result = native_function("Find-OwnedTask", program)
     assert result.returncode == 0, result.stderr
     assert result.stdout == ("missing" if missing else "refused")
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Native Windows principal normalization")
+@pytest.mark.parametrize("field", ["Name", "User.Value"])
+def test_scheduler_principal_names_and_sids_identify_the_same_user(field):
+    result = native_function(
+        "Resolve-TaskPrincipalSid",
+        r"""
+$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$actual = Resolve-TaskPrincipalSid $identity.FIELD
+if ($actual -cne $identity.User.Value) { throw 'principal mismatch' }
+[Console]::Out.Write('matched')
+""".replace("FIELD", field),
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "matched"

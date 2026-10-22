@@ -6,6 +6,15 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+function Resolve-TaskPrincipalSid([string]$Principal) {
+    if ($Principal -match '^S-1-') {
+        return ([Security.Principal.SecurityIdentifier]::new($Principal)).Value
+    }
+    return ([Security.Principal.NTAccount]::new($Principal)).Translate(
+        [Security.Principal.SecurityIdentifier]
+    ).Value
+}
+
 function Find-OwnedTask($Folder, $Config) {
     try { $task = $Folder.GetTask($Config.task_name) }
     catch [System.IO.FileNotFoundException] { return $null }
@@ -18,12 +27,16 @@ function Find-OwnedTask($Folder, $Config) {
         throw
     }
     $definition = $task.Definition
-    if ($definition.RegistrationInfo.Description -cne $Config.owner -or
-        $definition.Principal.UserId -cne $Config.principal -or
-        $definition.Principal.LogonType -ne 2 -or $definition.Principal.RunLevel -ne 0 -or
+    if ($definition.RegistrationInfo.Description -cne $Config.owner) {
+        throw 'broker-registration-owner-refused'
+    }
+    if ((Resolve-TaskPrincipalSid $definition.Principal.UserId) -cne $Config.principal) {
+        throw 'broker-registration-principal-refused'
+    }
+    if ($definition.Principal.LogonType -ne 2 -or $definition.Principal.RunLevel -ne 0 -or
         $definition.Triggers.Count -ne 0 -or $definition.Actions.Count -ne 1 -or
         $definition.Actions.Item(1).Type -ne 0) {
-        throw 'broker-registration-owner-refused'
+        throw 'broker-registration-policy-refused'
     }
     return $task
 }
@@ -177,6 +190,7 @@ try {
     # Never publish COM exception text, a task XML body or captured request data.
     $safeReasons = @(
         'broker-registration-owner-refused', 'broker-registration-action-refused',
+        'broker-registration-principal-refused', 'broker-registration-policy-refused',
         'broker-active-transactions-remain', 'broker-principal-refused',
         'broker-adoption-required', 'broker-admission-disabled', 'broker-activation-deadline'
     )

@@ -161,6 +161,7 @@ def task_operation(
         reason = result.stderr.strip()
         allowed = {
             "broker-registration-owner-refused", "broker-registration-action-refused",
+            "broker-registration-principal-refused", "broker-registration-policy-refused",
             "broker-active-transactions-remain", "broker-principal-refused",
             "broker-adoption-required", "broker-admission-disabled", "broker-activation-deadline",
             "broker-registration-rollback-unconfirmed",
