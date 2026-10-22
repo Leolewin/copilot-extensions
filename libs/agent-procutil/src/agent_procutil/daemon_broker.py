@@ -12,7 +12,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 _BOOT_PORT = "_CE_DAEMON_BROKER_PORT"
 _BOOT_COOKIE = "_CE_DAEMON_BROKER_COOKIE"
@@ -22,6 +22,7 @@ _SYNCHRONIZE = 0x00100000
 _PROCESS_ACCESS = _SYNCHRONIZE | 0x0001 | 0x0800 | 0x1000
 _WAIT_TIMEOUT = 0x102
 _CREATE_SUSPENDED = 0x00000004
+_ProcessT = TypeVar("_ProcessT", bound="WindowsDaemonProcess")
 
 _WMI_CREATE = r"""
 $ErrorActionPreference = 'Stop'
@@ -78,6 +79,14 @@ class WindowsDaemonProcess:
         self._handle = _kernel32().OpenProcess(_PROCESS_ACCESS, False, pid)
         if not self._handle:
             raise ctypes.WinError(ctypes.get_last_error())
+
+    @classmethod
+    def from_handle(cls: type[_ProcessT], handle: int, pid: int, args: list[str]) -> _ProcessT:
+        """Take an owned actual-process handle without reopening a numeric PID."""
+        process = cls.__new__(cls)
+        process.pid, process.args, process.returncode = pid, args, None
+        process._handle = handle
+        return process
 
     def poll(self) -> int | None:
         from ctypes import wintypes

@@ -124,3 +124,6 @@ try {
     $outcome | ConvertTo-Json -Depth 10
 }
 if (-not $outcome.supported -or -not $outcome.cleanup_confirmed) { exit 1 }
+& $python (Join-Path $PSScriptRoot 'windows_broker_protocol_acceptance.py') `
+    --ephemeral-ci-consent $root
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

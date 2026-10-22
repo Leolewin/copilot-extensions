@@ -52,6 +52,18 @@ IPC, nested caller-Job survival, interactive-desktop visibility or installed
 lifecycle qualification. The private synthetic pipe carries no credentials.
 The reviewed broker contract still owns those separate acceptance gates.
 
+After that capability probe, the same explicitly selected disposable job runs
+`windows_broker_protocol_acceptance.py`. It copies the canonical broker and
+transport sources into an owned immutable fixture directory without installing
+packages. The fixture uses the production registration, native pipe protocol
+and native handle transfer twice, closes two nested caller cleanup Jobs after
+adoption, and checks the actual resident's argv, environment, cwd, split logs,
+own-console visibility, continued execution and native retirement.
+`protocol-result.json` reports this result and cleanup independently of the
+earlier capability probe; either failure rejects the job. Ordinary contained
+units never register a task. This lane is still synthetic source qualification,
+not permission to adopt or update a broker on a shared host.
+
 ## Native file-link prerequisites
 
 `tools/test_dependency_uv_executable_native.py` qualifies both absolute and

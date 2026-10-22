@@ -244,6 +244,12 @@ evidence.
 
 ## Launching a resident daemon: `spawn_daemon`
 
+**Windows qualification hold:** the current WMI fallback's immediate-Job
+membership check does not prove escape from a shared ancestor Job. It is not
+qualified for that case. The explicit finite Task Scheduler implementation
+below is being qualified separately; it does not yet replace this fallback
+or authorize an installed change.
+
 A long-lived daemon (one started by an installer, a hook, a CLI or a cutover
 and meant to outlive it) launches through one primitive instead of hand-built
 `Popen` kwargs:
@@ -333,6 +339,40 @@ or session, e.g. `CREATE_NEW_CONSOLE` or `CREATE_BREAKAWAY_FROM_JOB`) raises
 `ValueError` on every platform, so a caller cannot reopen a console or defeat
 `breakaway=False` and contained test mode. Interpreter selection stays with
 the caller (`windowless_python()` / `windowless_python_env()`).
+
+### Explicit finite Windows broker
+
+`windows_task_broker` supplies a consumer-owned on-demand Scheduled Task
+implementation. It requires the optional `windows-broker` extra, which reuses
+`agent-zdd`'s stdlib-only private native transport. Ordinary process operations
+retain no runtime dependencies and need no sibling plugin or service.
+
+Only the consumer's canonical installer, under its existing execution driver,
+calls `reconcile` with its validated installation identity, private durable root
+and already-qualified immutable runtime. Registration has no triggers, saved
+password, elevation or network listener. Installed action and cwd cannot point
+into a payload, checkout or session. Missing adoption fails explicitly; normal
+launches never install or repair it. Update drains finite accepted transactions
+without stopping them; stop/uninstall disable admission and report that already
+transferred child control remains the consumer's responsibility.
+
+Each activation supplies only a fresh pipe rendezvous and public caller
+PID/birth metadata through Task Scheduler. The client pins the actual scheduler
+instance, checks its executable and authenticates that process as the native
+pipe creator before sending argv or environment. Owner-only local pipes reject
+other users and remote clients. The actual child is staged suspended and must
+be outside **every** Job. The client duplicates its native control handle
+through the already-pinned broker process, checks PID/birth/principal and Job
+membership, and adopts it before resume. A lost or ambiguous acknowledgement
+is a failed transaction with explicit cleanup state, not permission to launch
+another copy. Failed retirement retains retryable custody and blocks new work.
+
+The finite instance stays alive until the client's final commit and pipe close;
+the caller joins only that broker, not its resident. Independent custody before
+finite exit is the exemption from a resident broker's graceful-cutover contract.
+Containing tests refuse activation. This API and its disposable native lane
+are not yet consumer-installer adoption, normal-launch integration, interactive
+desktop visibility, promotion or deployment qualification.
 
 A child that must not outlive the process that spawned it is spawned inside a
 kill-on-close Windows Job Object:

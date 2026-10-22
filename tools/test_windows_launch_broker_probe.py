@@ -6,8 +6,28 @@ import json
 from unittest.mock import Mock
 
 import pytest
-
+import windows_broker_protocol_acceptance as protocol_probe
 import windows_launch_broker_probe as probe
+
+
+def test_protocol_fixture_refuses_shared_host_before_any_native_action(monkeypatch, tmp_path):
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.setattr(protocol_probe, "inspect", Mock(side_effect=AssertionError("host mutation")))
+    monkeypatch.setattr(
+        protocol_probe.sys, "argv",
+        ["fixture", "--ephemeral-ci-consent", str(tmp_path / "ce-broker-probe-owned")],
+    )
+    with pytest.raises(RuntimeError, match="ephemeral Windows CI consent"):
+        protocol_probe.main()
+    protocol_probe.inspect.assert_not_called()
+
+
+def test_protocol_caller_refuses_shared_host_before_loading_runtime(monkeypatch, tmp_path):
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.setattr(protocol_probe, "imports", Mock())
+    with pytest.raises(RuntimeError, match="ephemeral Windows CI consent"):
+        protocol_probe.caller(tmp_path, tmp_path)
+    protocol_probe.imports.assert_not_called()
 
 
 def test_probe_refuses_inspection_outside_authorized_ci(monkeypatch, tmp_path):

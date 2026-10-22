@@ -1,5 +1,5 @@
 {
-  "comment": "Correct Windows Job ownership and verified retirement, and preserve cancelled CPU sample accounting.",
+  "comment": "Correct Windows retirement and CPU sample custody; add an explicitly adopted finite native-pipe launch broker for isolated qualification.",
   "changes": [
     {
       "plugin": "agent-bridge",

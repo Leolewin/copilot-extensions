@@ -1,0 +1,185 @@
+param(
+    [Parameter(Mandatory)]
+    [ValidateSet('install', 'update', 'activate', 'status', 'stop', 'uninstall')]
+    [string]$Action
+)
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
+
+function Find-OwnedTask($Folder, $Config) {
+    try { $task = $Folder.GetTask($Config.task_name) }
+    catch [Runtime.InteropServices.COMException] {
+        if ($_.Exception.HResult -eq -2147024894) { return $null }
+        throw
+    }
+    $definition = $task.Definition
+    if ($definition.RegistrationInfo.Description -cne $Config.owner -or
+        $definition.Principal.UserId -cne $Config.principal -or
+        $definition.Principal.LogonType -ne 2 -or $definition.Principal.RunLevel -ne 0 -or
+        $definition.Triggers.Count -ne 0 -or $definition.Actions.Count -ne 1 -or
+        $definition.Actions.Item(1).Type -ne 0) {
+        throw 'broker-registration-owner-refused'
+    }
+    return $task
+}
+
+function Assert-Action($Task, $Config) {
+    $definition = $Task.Definition
+    $exec = $definition.Actions.Item(1)
+    if ($exec.Path -cne $Config.pythonw -or $exec.Arguments -cne $Config.arguments -or
+        $exec.WorkingDirectory -cne $Config.cwd -or
+        $definition.Settings.MultipleInstances -ne 0 -or
+        $definition.Settings.ExecutionTimeLimit -cne 'PT1M' -or
+        -not $definition.Settings.AllowDemandStart) {
+        throw 'broker-registration-action-refused'
+    }
+}
+
+function Wait-Drained($Task) {
+    $deadline = [Diagnostics.Stopwatch]::StartNew()
+    while ($Task.GetInstances(0).Count -ne 0) {
+        if ($deadline.Elapsed.TotalSeconds -ge 10) {
+            throw 'broker-active-transactions-remain'
+        }
+        Start-Sleep -Milliseconds 50
+    }
+}
+
+$rollbackXml = $null
+$newRegistration = $false
+try {
+    $inputValue = [Console]::In.ReadToEnd() | ConvertFrom-Json
+    $c = $inputValue.config
+    $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    if ($sid -cne $c.principal) { throw 'broker-principal-refused' }
+    $service = New-Object -ComObject 'Schedule.Service'
+    $service.Connect()
+    $folder = $service.GetFolder('\')
+    $task = Find-OwnedTask $folder $c
+    if ($Action -eq 'install' -or $Action -eq 'update') {
+        if ($null -ne $task) {
+            if ($Action -eq 'install') {
+                Assert-Action $task $c
+            } else {
+                # The execution driver owns this mutation; a new slot does not
+                # permit stopping or replacing an accepted finite transaction.
+                Assert-Action $task $inputValue.previous
+                $wasEnabled = $task.Enabled
+                $originalXml = $task.Xml
+                $task.Enabled = $false
+                try {
+                    Wait-Drained $task
+                } catch {
+                    $task.Enabled = $wasEnabled
+                    throw
+                }
+                $rollbackXml = $originalXml
+            }
+        }
+        if ($null -eq $task -or $Action -eq 'update') {
+            $definition = $service.NewTask(0)
+            $definition.RegistrationInfo.Description = $c.owner
+            $definition.Principal.UserId = $c.principal
+            $definition.Principal.LogonType = 2
+            $definition.Principal.RunLevel = 0
+            $definition.Settings.Enabled = $true
+            $definition.Settings.AllowDemandStart = $true
+            $definition.Settings.Hidden = $true
+            $definition.Settings.MultipleInstances = 0
+            $definition.Settings.DisallowStartIfOnBatteries = $false
+            $definition.Settings.StopIfGoingOnBatteries = $false
+            $definition.Settings.ExecutionTimeLimit = 'PT1M'
+            $exec = $definition.Actions.Create(0)
+            $exec.Path = $c.pythonw
+            $exec.Arguments = $c.arguments
+            $exec.WorkingDirectory = $c.cwd
+            $flags = if ($null -eq $task) { 2 } else { 4 }
+            $task = $folder.RegisterTaskDefinition(
+                $c.task_name, $definition, $flags, $c.principal, $null, 2, $null
+            )
+            $newRegistration = $flags -eq 2
+            Assert-Action $task $c
+        }
+    } elseif ($null -eq $task) {
+        throw 'broker-adoption-required'
+    } else {
+        Assert-Action $task $c
+    }
+    if ($Action -eq 'activate') {
+        if (-not $task.Enabled) { throw 'broker-admission-disabled' }
+        # Only public rendezvous and process identity cross the scheduler.
+        # Credentials/argv/environment travel later through the native pipe.
+        $running = $task.RunEx(
+            @($inputValue.nonce, [string]$inputValue.client_pid, $inputValue.client_birth),
+            0, 0, $null
+        )
+        $timer = [Diagnostics.Stopwatch]::StartNew()
+        do {
+            $running.Refresh()
+            if ($running.State -eq 4 -and $running.EnginePID -gt 0) { break }
+            if ($timer.Elapsed.TotalSeconds -ge 10) { throw 'broker-activation-deadline' }
+            Start-Sleep -Milliseconds 25
+        } while ($true)
+        Assert-Action (Find-OwnedTask $folder $c) $c
+        $process = [Diagnostics.Process]::GetProcessById([int]$running.EnginePID)
+        try {
+            $birth = $process.StartTime.ToUniversalTime().ToFileTimeUtc().ToString()
+        } finally {
+            $process.Dispose()
+        }
+        [ordered]@{
+            instance = [string]$running.InstanceGuid
+            pid = [int]$running.EnginePID
+            birth = $birth
+            principal = $sid
+        } | ConvertTo-Json -Compress
+    } elseif ($Action -eq 'stop' -or $Action -eq 'uninstall') {
+        $task.Enabled = $false
+        Wait-Drained $task
+        if ($Action -eq 'uninstall') { $folder.DeleteTask($c.task_name, 0) }
+        [ordered]@{
+            phase = 'drained'
+            installed = ($Action -ne 'uninstall')
+            child_control = 'retained-by-consumer'
+        } | ConvertTo-Json -Compress
+    } else {
+        [ordered]@{
+            installed = $true
+            configured = $true
+            accepting = [bool]$task.Enabled
+            active_instances = [int]$task.GetInstances(0).Count
+            child_control = 'retained-by-consumer'
+        } | ConvertTo-Json -Compress
+    }
+} catch {
+    $failure = $_.Exception.Message
+    try {
+        if ($null -ne $rollbackXml) {
+            $null = $folder.RegisterTask(
+                $c.task_name, $rollbackXml, 4, $c.principal, $null, 2, $null
+            )
+        } elseif ($newRegistration) {
+            $owned = Find-OwnedTask $folder $c
+            if ($owned.GetInstances(0).Count -ne 0) {
+                throw 'broker-active-transactions-remain'
+            }
+            $folder.DeleteTask($c.task_name, 0)
+        }
+    } catch {
+        [Console]::Error.WriteLine('broker-registration-rollback-unconfirmed')
+        exit 1
+    }
+    # Never publish COM exception text, a task XML body or captured request data.
+    $safeReasons = @(
+        'broker-registration-owner-refused', 'broker-registration-action-refused',
+        'broker-active-transactions-remain', 'broker-principal-refused',
+        'broker-adoption-required', 'broker-admission-disabled', 'broker-activation-deadline'
+    )
+    $reason = if ($failure -cin $safeReasons) {
+        $failure
+    } else {
+        'windows-broker-task-operation-refused'
+    }
+    [Console]::Error.WriteLine($reason)
+    exit 1
+}

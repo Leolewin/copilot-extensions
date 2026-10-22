@@ -85,7 +85,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-broker-activation-${{ github.run_id }}
-          path: ${{ runner.temp }}/ce-broker-probe-*/result.json
+          path: |
+            ${{ runner.temp }}/ce-broker-probe-*/result.json
+            ${{ runner.temp }}/ce-broker-probe-*/protocol-result.json
           if-no-files-found: error
 
   watch-owner-native-linux:
