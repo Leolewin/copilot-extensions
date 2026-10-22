@@ -162,6 +162,12 @@ pins current members before termination and waits for their native exit within
 the same cleanup budget. Birth counters fence the census; an unstable census,
 late unpinned birth, failed query or unconfirmed member exit remains a cleanup
 error, never a successful partial completion.
+Unconfirmed retirement retains its query Job and pinned member handles on the
+cleanup error's Job owner. The retained Windows process's
+`retire_job(error.job, timeout)` retries those same native exit witnesses;
+it does not substitute a fresh census after the original Job handle closed.
+An incomplete census or an unpinned birth remains a failure, not a retry that
+silently discards unknown descendants.
 Worker setup and startup stay inside that boundary, including interruption
 before a launched thread has assigned its identity.
 Normal early stdin closure preserves the target's result; unexpected input

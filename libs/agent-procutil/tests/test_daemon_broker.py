@@ -115,6 +115,7 @@ def test_caller_without_a_job_has_no_job_cleanup_boundary(monkeypatch):
 
 
 def test_caller_membership_resizes_without_truncating(monkeypatch):
+    monkeypatch.setattr(broker.os, "getpid", lambda: 99999)
     members = [broker.os.getpid(), *range(1000, 1130)]
     kernel = _caller_kernel(monkeypatch, members)
     assert broker._outside_caller_job(Mock(pid=99001))
