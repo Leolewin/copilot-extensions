@@ -280,12 +280,14 @@ $tokens = $null
 $errors = $null
 $ast = [Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
 if ($errors) { throw 'fixture parse failed' }
-$function = $ast.Find({
-    param($node)
-    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
-        $node.Name -eq 'FUNCTION_NAME'
-}, $true)
-. ([scriptblock]::Create($function.Extent.Text))
+if ('FUNCTION_NAME') {
+    $function = $ast.Find({
+        param($node)
+        $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+            $node.Name -eq 'FUNCTION_NAME'
+    }, $true)
+    . ([scriptblock]::Create($function.Extent.Text))
+}
 """
     powershell = Path(os.environ["SystemRoot"]) / (
         r"System32\WindowsPowerShell\v1.0\powershell.exe"
@@ -303,6 +305,50 @@ $function = $ast.Find({
 def test_activation_phase_calls_match_the_fixed_diagnostic_allowlist():
     source = Path(task.__file__).with_name("windows_broker_task.ps1").read_text(encoding="utf-8")
     assert set(re.findall(r"Write-ActivationPhase '([^']+)'", source)) == task._ACTIVATION_PHASES
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Native Windows COM VARIANT argument contract")
+def test_actual_activation_expression_marshals_bstr_array_not_variant_array():
+    result = native_function(
+        "",
+        r"""
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public sealed class SyntheticRunEx {
+    [DllImport("oleaut32.dll")]
+    private static extern int VariantClear(IntPtr value);
+    public int RunEx(object parameters, int flags, int session, object user) {
+        var values = parameters as string[];
+        if (values == null || values.Length != 3 ||
+            values[0] != "nonce" || values[1] != "123" || values[2] != "456") {
+            throw new ArgumentException("BSTR array required");
+        }
+        IntPtr variant = Marshal.AllocCoTaskMem(32);
+        try {
+            Marshal.GetNativeVariantForObject(parameters, variant);
+            return Marshal.ReadInt16(variant);
+        } finally {
+            VariantClear(variant);
+            Marshal.FreeCoTaskMem(variant);
+        }
+    }
+}
+'@
+$task = New-Object SyntheticRunEx
+$inputValue = [pscustomobject]@{nonce='nonce';client_pid=123;client_birth='456'}
+$expression = $ast.Find({
+    param($node)
+    $node -is [Management.Automation.Language.InvokeMemberExpressionAst] -and
+        $node.Member.Value -eq 'RunEx'
+}, $true)
+$kind = & ([scriptblock]::Create($expression.Extent.Text))
+if ($kind -ne 8200) { throw 'VT_ARRAY | VT_BSTR required' }
+[Console]::Out.Write('bstr-array')
+""",
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "bstr-array"
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Native Windows PowerShell fixed phase diagnostics")

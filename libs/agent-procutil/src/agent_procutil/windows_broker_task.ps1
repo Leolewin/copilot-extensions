@@ -148,7 +148,7 @@ try {
         # Credentials/argv/environment travel later through the native pipe.
         Write-ActivationPhase 'run-requested'
         $running = $task.RunEx(
-            @($inputValue.nonce, [string]$inputValue.client_pid, $inputValue.client_birth),
+            [string[]]@($inputValue.nonce, [string]$inputValue.client_pid, $inputValue.client_birth),
             0, 0, $null
         )
         Write-ActivationPhase 'run-returned'
