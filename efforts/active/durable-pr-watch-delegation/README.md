@@ -245,11 +245,17 @@ _Operator-required scope; agent-recommended implementation and validation._
   endpoint/repository/authentication/expiry checks and no ambient fallback (#7954).
   This source item does not close the process-boundary service adapter,
   production-provider validation or installed/fleet acceptance.
-- [ ] Land the explicit native-command credential adapter, reusing the typed
+- [x] Land the explicit native-command credential adapter, reusing the typed
   worker's public configuration/command and bounded captured output rather
   than importing Fleet into Worktrees. Preserve per-request renewal,
   scope/expiry/refusal and the ordinary unselected CLI paths; service
-  activation and production-provider validation remain separate.
+  activation and production-provider validation remain separate (#7984).
+- [x] Land a finite replay-observation adapter over the native credential-backed
+  bridge. Coalesce only exact account/repository/PR groups; release disk custody
+  across reads, apply only captured registration identities, and retain original
+  events/deadlines through provider loss, cancellation and restart. Source
+  validation does not close service scheduling, activation or production proof
+  (source confirmed by #8028).
 - [ ] Define and deliver the [PR-service consumer contract](pr-service-contract.md)
   through normal reviewed source changes, including missing shared seams and
   real serving/consumer proof. Consult related campaigns without a separate
@@ -495,6 +501,124 @@ This preserves functionality without making a secret-bearing durable
 callback an implicit credential store.
 
 ## Journal
+
+### 2026-10-22 - Prepare the finite service-caller transport
+
+- Added Fleet's finite `ServiceCaller` SDK under the existing optional
+  `service-gateway` extra, reusing its TLS, PoP and wire bounds. The embedding
+  supplies the exact canonical Gateway origin, current async access-token
+  callback, proof key and optional CA. There is no credential issuer, ambient
+  login, endpoint discovery, retry scheduler or runtime activation.
+- Each call owns a bounded HTTP session, obtains a fresh challenge/current
+  token, and returns an immutable finite response. Policy withdrawal is an
+  ordinary failed request; cancellation/transport loss cannot establish remote
+  nonacceptance. A transmitted mutation with an unusable response reports
+  uncertainty for original-ID reconciliation, not replacement or rollback.
+- Exact real-TLS refusal tests caught aiohttp retrying a disconnected GET even
+  on a fresh force-closed connection. The SDK now explicitly disables automatic
+  retries, following the existing connector's idiom. It also validates the
+  nonce before credential acquisition. The contained Windows caller, transport
+  and policy selection passes 167 tests; the new caller cases include actual
+  PoP, method/query binding, current credentials, policy withdrawal/recovery,
+  malformed challenge, redirect/encoding/stream-size refusal, cancellation,
+  bounded concurrency and one-attempt GET/POST/PUT/DELETE disconnects.
+- Final focused checks also confirm one challenge/token callback per operation
+  and bodyless HEAD/304 responses whose representation `Content-Length` exceeds
+  the finite body cap (one plus two passing cases). Fatal lint, the 13-plugin
+  install-contract gate and 13-adopter headless-launch guard pass.
+- This bounded shared-module source contribution remains subject to current-head
+  review and required CI. The PR-owned replay client, shared Dispatch consumer,
+  installable lifecycle, production-provider credentials, release/authorized
+  installed proof and actual fleet acceptance remain open. The parent is Active;
+  no rollout or production authentication occurred.
+
+### 2026-10-22 - Merge scoped observation and continue shared consumption
+
+- #8028 merged as `e53d8d24e00fc6a4ba82003273398ab680b44347` at
+  `2026-10-23T01:55:34Z`, from published head
+  `6aa0aa4504577d9032f954caeb9808a40f127d25`. Current-head Copilot review
+  `5623018366` approved with no open issues. The full review body and all thread
+  pages were read; the event-size thread was resolved, the body-only stale-target
+  finding was fixed, and every required check passed. Managed completion used
+  only the documented additional-CODEOWNER review exception, not a CI or
+  feedback bypass. The parent #7188 remains open.
+- Re-read the entire current parent Plan and Validation after merge. Closed
+  only the finite native replay-observation source item. Final validation
+  passes 275 cases with ten existing platform skips, including real
+  native/Fleet-CLI/TLS credentials through durable replay and restarted consumer
+  ACK. Production credential validation, installation, lifecycle, client/matrix,
+  shared Dispatch consumption and actual fleet acceptance remain open.
+- Next: connect the shared consumer through the real service profile and
+  existing Dispatch prepare/arm/finish fences. The current static Gateway client
+  does not implement that service-caller transport; contribute the missing
+  bounded shared seam in its owner rather than use index routes or a second
+  authentication scheme. Preserve original request/deadline and exact
+  registration/event identity across reconnect and completion.
+- Managed post-merge pull-forward retained a backup and removed only the three
+  redundant already-published commits. The worktree remains bound to this
+  Active parent; no finalization, runtime update, production credential
+  acquisition, remote activation or new capacity is authorized by the merge.
+
+### 2026-10-22 - Connect replay groups to finite native observation
+
+- Added a read-only eligibility refresh before each native read: an earlier
+  read's timeout sweep or concurrent completion cannot leave a stale target
+  consuming provider/credential work ahead of another live target. The original
+  captured identity set remains the fence, including cancellation plus a new
+  registration for the same PR. This adds a short reload, not a held I/O lock.
+  The final focused selection passes 275 cases with ten existing platform skips.
+- The first #8028 pass identified valid native snapshots larger than replay's
+  delivery budget as a per-target failure, not an owner failure. A reproduced
+  two-target regression initially failed at the size refusal. A distinct
+  event-size exception now leaves that watch intact, continues deadline sweeps
+  and later targets across repeated cycles, while authority, corrupt state and
+  commit failures remain fatal. The corrected focused selection passes 273
+  cases with ten existing platform skips; current-head review and CI remain required.
+- Added trusted immutable account/repository/native-command bindings and one
+  owner-invoked observation cycle, not another poller, service, forge client or
+  fleet controller. The embedding lifecycle retains scheduling, ownership,
+  credentials, expiry/disconnect checkpoints and drain. No registration or
+  Gateway operation accepts provider argv or credential selectors.
+- Reused complete-envelope disk transactions for target enumeration, application
+  and timeout sweeps. Native reads occur outside disk custody. Exact pre-read
+  registration IDs prevent an older result from reaching a concurrently added
+  wait; reload preserves concurrent cancellation and pending event/ACK identity.
+  Different account/repository scopes never share reads or fallback credentials.
+- Contained validation passes 270 focused cases, with ten existing POSIX-only
+  skips on Windows. This includes actual native subprocess/coalesced disk state,
+  a restarted consumer's exact event/ACK, provider failure/deadline handling,
+  revocation-as-disconnect, post-commit uncertainty and the complete synthetic
+  native/Fleet-CLI/TLS credential exchange through durable replay observation.
+  Ruff, all 13 install contracts and all 13 headless-launch adopter checks pass.
+- Clean-room installer and live external-venue lanes are not exercised: this
+  slice adds no installer, first-provision or service activation path, and no
+  production credentials or deployment are authorized. The independently
+  installable lifecycle, production provider verification, shared Dispatch
+  consumer, release/authorized rollout and real fleet acceptance remain open.
+  Review, required CI and a source merge are still pending for this slice.
+
+### 2026-10-22 - Merge the typed native process adapter and retain observation integration
+
+- #7984 merged as `5c7406f0750d727c6336684073047ba1dd963b3a` at
+  `2026-10-23T00:46:00Z`, from published head
+  `197a8bcb2a36b4f19b441b9eeb50bc959639e54a`. Current-head Copilot review
+  `5622635624` approved with no open issues. The batch-boundary thread was
+  resolved and every required check passed. Managed completion used only the
+  documented additional-CODEOWNER review exception, not a CI or feedback bypass.
+- Re-read the entire current parent Plan and Validation after merge. Closed
+  only the bounded native-command credential-adapter source item. Preserved
+  all client/matrix, installed adoption, lifecycle, provider and fleet gates.
+  The final focused selection passes 264 cases, including the complete
+  PR/native/Fleet-CLI/TLS credential exchange; ten existing POSIX controls
+  skip on Windows. This is synthetic source proof, not deployment.
+- Next: connect authorized replay observation groups to the native fetch
+  adapter, preserving account-scoped coalescing, durable original deadlines,
+  pending event/ACK identities and no ambient fallback. Then complete the
+  shared Dispatch consumer and independently installable lifecycle through
+  existing owners' public interfaces. Production provider verification,
+  release/authorized installation and actual fleet acceptance remain open.
+- No runtime update, production credential acquisition, remote activation,
+  new capacity or worktree finalization follows from this source merge.
 
 ### 2026-10-22 - Connect typed credentials across the native command boundary
 
