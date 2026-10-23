@@ -569,3 +569,27 @@ repository history.
   retains the old fallback; this repair draft must not merge or deploy as a
   completed fix. Native POSIX, containing maintenance consumers, review,
   legitimate release and separately authorized rollout remain open.
+
+### 2026-10-22 - Exact action health and native lifecycle pass
+
+- Added a bounded exact-`pythonw` health entry before registration mutation.
+  It imports the immutable action's colocated transport, checks native user
+  identity and requires a strict readiness response. Missing dependencies and
+  unhealthy candidates cannot change task registration or published metadata.
+  The real copied-runtime health and targeted adapter/probe suite passed 62
+  contained tests; lint passed.
+- Exact-head run
+  [39878472832](https://github.com/ThomasMichon/copilot-extensions/actions/runs/39878472832)
+  at `0f238d4772557db38e017a7fdfa738e8f6ee3442` passed the actual Windows
+  step, both native resident cycles and the shared-ancestor negative control.
+  It exercised first/repeat adoption, a replacement immutable action, unhealthy
+  candidate refusal, restoration after injected publication failure, stop,
+  readoption and final owned removal. Cleanup was confirmed.
+- This closes the bounded native lifecycle scenario, not whole-installer
+  integration. Reuse canonical installation ownership and crash-consistent
+  publication/recovery before wiring normal launch: task registration and
+  configuration publication are separate effects, and synchronous rollback
+  tests do not prove interrupted-transition recovery. Scope propagation,
+  generation retention, standalone dependency closure, desktop observation,
+  native POSIX and actual maintenance consumers remain open. Both drafts stay
+  held; no deployment authorization has changed.

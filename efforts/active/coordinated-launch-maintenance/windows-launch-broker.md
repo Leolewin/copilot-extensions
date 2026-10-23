@@ -156,9 +156,12 @@ CI/promotion enforcement remain the separate parent gate.
   _Two actual protocol cycles, all caller-Job closures, exact delivery, actual
   cleanup and hidden own console passed in run 39876801692. Full
   desktop/foreground observation remains open._
-- [ ] Exercise clean first adoption, repeat adoption, update, failed-update
+- [x] Exercise clean first adoption, repeat adoption, update, failed-update
   rollback, status, stop and uninstall in that approved disposable lane.
   Assert no stale registrations or abandoned owned instances remain.
+  _Run 39878472832 exercised the actual lifecycle, including unhealthy action
+  refusal and restoration after an injected publication failure. Both native
+  resident cycles and final owned cleanup passed._
 - [ ] Prove replaced payload/checkout paths can disappear without breaking
   the installed broker. Test simultaneous starts and generation cutover or
   demonstrate the finite-worker exemption above.
