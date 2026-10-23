@@ -54,8 +54,11 @@ Promotion composes versions and expands development vendor pointers into a
 self-contained `main` tree. Raw-dev non-editable installs have an existing
 tracked gap (#3905). Canonical runtime helpers already provide immutable
 completion, activation, retention and claim-owned editable development
-generations. This campaign extends those building blocks, rather than treating
-editable development claims as clean source deployments.
+generations (legacy interactive behavior). The
+[Immutable Dev Slot effort](../immutable-dev-slot/README.md) replaces that
+editable target with frozen, non-editable source-hashed generations under
+#5472. This campaign remains the canonical deploy-from-Dev home and extends
+the same building blocks, not a second installer or mutable environment.
 
 The [source-owned release vision](../../../visions/release-pipeline/README.md)
 keeps the verified development commit as the release identity. Generated main
@@ -63,6 +66,32 @@ commits, materialized payload digests, package versions, profiles and dependency
 locks describe different facts; no new competing artifact authority is needed.
 
 ## Request
+
+**Immutable development alignment (2026-10-22), operator verbatim:**
+
+> So, mutable dev slot should probably be superseded by "immutable dev slot", and the "deploy from dev branch" effort. Basically, always deploy using an immutable venv, tagged with the hash of the source. Just set the new dev slot as current and handle cutover normally by giving the incoming version a start command and letting the old version shut off. We should endeavor to support baton-passing both ways; a version knows it's "old" simply because it's "not current", not via any ordering relationship between the active and owner versions.
+
+> Great. Update relevant visions and efforts to align; close out and abandon superseded efforts and off-course work.
+
+**Accepted alignment:** retain this effort's clean merged Dev source, Manager,
+maintenance, driver and installed-adoption owners/gates. All deployments use
+immutable venvs identified by complete source and admitted build inputs.
+Current selection starts the incoming owner through ordinary best-effort handoff;
+full identity inequality, not version ordering, identifies the displaced owner.
+Reverse baton-passing prefers compatible health-gated drain, but permits bounded
+identity-checked old-owner shutdown and cold recovery when handoff contracts
+are incompatible or fail. This documentation revision neither
+restarts completed Phase 2 work nor claims remaining cutover/adoption proven.
+
+**Best-effort follow-on (2026-10-22), summary:** the operator permits outgoing
+daemons to quick-terminate their owned scope, and the selected newcomer to
+force-terminate an identity-verified predecessor when handoff cannot complete.
+Clients tolerate transient network-like outages/stream cut-offs; child daemons
+tolerate power-loss-like interruption and recover retriable durable work.
+A breaking development contract must not veto replacement. The
+[canonical verbatim capture](../immutable-dev-slot/README.md#request) preserves
+the complete operator input. Existing source/maintenance/driver and native
+acceptance owners remain; no live shutdown or rollout is authorized here.
 
 **Settled request summary:** add a local gate only around service payload
 publication and installed runtime redirect updates; retain all other hook
@@ -166,6 +195,7 @@ publication and command-ownership boundaries; it does not disable whole hooks.
 - [ ] Keep adapters thin and enforce drift-compatible service interaction without implicit runtime replacement.
 
 ### Phase 4 - Integrate Manager-owned runtime source selection
+- [ ] **Agent-recommended alignment qualification:** prove forward/reverse current-generation replacement, including same-package/different-source selection, with preferred compatible handoff and bounded identity-checked cold takeover when contracts break or drain fails; use identity inequality, not version ordering.
 - [ ] Maintain a separate installation source with main, stable/exact pin and opt-in merged-dev selection resolved once per run.
 - [ ] Keep service-source selection independent of Manager self-update and Copilot plugin-content selection.
 - [ ] Route the selected source through the same assembly, readiness, activation and observable update-outcome path.
@@ -179,7 +209,7 @@ matrix; no schedule or cadence is enabled by this plan.
 - [x] Land the portable source-backed maintenance intent and implementation plan through review before adding that capability.
 - [ ] Review the ownership revision, default-off policy, trusted-harness setup consent and current-user Windows Autorun lifecycle before implementation.
 - [ ] Implement Manager-owned enrollment, background lifetime, bounded recurring invocation and status through the existing canonical update path, without requiring Agent Machines or an open Picker.
-- [ ] Upgrade the resident maintenance worker safely when Manager changes, preserving an active update and exclusive scheduling without waiting for another logon.
+- [ ] Upgrade the resident maintenance worker safely when Manager changes, preserving durable update requests and exclusive scheduling through best-effort handoff or bounded cold recovery without waiting for another logon.
 - [ ] Preserve explicit local choice and support an exclusive external-controller owner; hand over legacy suite-update responsibility without disabling general machine/dependency convergence.
 - [ ] Add the portable setup enrollment seam and qualify an explicitly consenting adopter after Manager installation; keep private adopter implementation and evidence in its own repository.
 - [ ] Prove default-off, trusted-setup enrollment, no-elevation Windows startup, durable headless operation, failure visibility and unchanged/advancing cycles on native Windows and Linux.
@@ -200,6 +230,8 @@ transaction execution from the existing recurring-maintenance assignment.
 - [x] Review the standalone foundation amendment before implementing cold first-use execution.
 - [x] Qualify the Python-free Windows process and operation-custody prerequisites independently of foundation construction.
 - [x] Qualify native construction progress, queue-fence interoperability and explicit restart-evidence recovery before enabling a cold bootstrap producer.
+- [x] Qualify the fixed standalone construction participant, immutable reuse, failed-candidate preservation and installed source independence on hosted Windows and Linux before native genesis integration.
+- [x] Qualify the owner-bound native Windows bridge to the existing participant protocol, retaining owner-thread mutation, cross-language identity, revocation and malformed/stalled/excess-peer isolation.
 - [ ] Establish the standalone execution foundation before plugin provisioning without requiring an existing Python runtime, Manager or another plugin.
 - [ ] Migrate first-use publishers onto that foundation, retaining the canonical installer, publication admission, healthy dispatch and precise skew/recovery outcomes.
 - [ ] Qualify foundation genesis, caller loss, concurrent cold callers, failed construction, upgrade and subsequent first-use requests on native supported platforms.
@@ -227,6 +259,8 @@ transaction execution from the existing recurring-maintenance assignment.
 
 ## Validation Plan
 
+- [ ] **Bidirectional selection:** forward, lower-version and same-package/different-source replacements use identity inequality; compatible handoff health-gates before retirement, while incompatible/refused/hung handoff allows bounded owned-scope shutdown or identity-checked force termination before cold-start readiness.
+- [ ] **Cold recovery and retries:** breaking all predecessor handoff contracts does not veto selected Dev deployment. Qualify durable recovery after abrupt child death, consumer reconnect after stream/reply loss, safe retry/deduplication or unknown-outcome reconciliation, exclusive ownership and explicit failed-recovery reporting.
 - [ ] **Source admission:** reject dirty, worktree-backed, unmerged or substituted source; preserve the exact resolved commit throughout a run.
 - [ ] **Materialization:** actual installer imports the complete vendor closure from a non-editable install with no source-checkout dependency.
 - [ ] **Identity:** identical inputs reuse unchanged completion bytes; different commits or assembly/dependency/profile inputs cannot overwrite a completed slot.
@@ -237,7 +271,7 @@ transaction execution from the existing recurring-maintenance assignment.
 - [ ] **Source modes:** main tracking, stable/exact pins and dev tracking converge through one source-assembly path without moving midway through a run.
 - [ ] **Maintenance:** the existing owner runs bounded, observable source health/sync/install cycles at the selected cadence; unchanged input is reused and source/candidate/overlap failures preserve healthy runtimes and edits.
 - [ ] **Background ownership:** default-off enrollment accepts explicit user or trusted-setup consent, current-user Windows Autorun requires no UAC registration, the worker survives its setup caller without visible consoles, and only the selected owner performs suite updates.
-- [ ] **Worker upgrade:** native old-to-new worker replacement preserves an in-flight update, prevents concurrent scheduling and retains healthy operation or an explicit recovery outcome when the successor fails.
+- [ ] **Worker upgrade:** native replacement preserves durable in-flight request/operation identity across graceful or cold recovery, prevents concurrent scheduling or duplicate unsafe effects, and reports actual readiness or a recovery outcome when the successor fails.
 - [ ] **Execution driver:** concurrent ordinary callers observe one durable operation, caller exit preserves it, distinct explicit selections stay distinct, interrupted execution remains explicit, and supervised debugging cannot overlap the same transaction authority.
 - [ ] **Setup adoption:** approved consuming-harness setup finishes with verified enrollment or a precise activation/readiness blocker; unrelated repository discovery cannot enroll maintenance and external-controller ownership cannot overlap Manager.
 - [ ] **Management continuity:** Manager and the selected service runtimes can use distinct clean merged-source selections; the management tools remain usable for update and supported recovery.
@@ -260,6 +294,26 @@ independent configuration choice rather than forcing the Manager and suite
 onto one branch.
 
 ## Journal
+
+### 2026-10-22 - Best-effort service replacement alignment
+
+Aligned this effort with the operator follow-on captured verbatim by Immutable
+Dev Slot. Compatible handoff remains preferred; incompatible or exhausted
+handoff permits bounded identity-checked retirement and cold recovery, including
+the maintenance worker's durable update requests. Added explicit outer-client
+retry and abrupt child-shutdown qualification. This does not waive source
+admission, state-safe recovery, exclusive execution or installed/native evidence,
+and does not claim the new fallback implemented.
+
+### 2026-10-22 - Align immutable development and retained Dev deployment
+
+Re-read the two newly captured operator statements against their literal input.
+The canonical direct merged Dev home remains this effort; immutable interactive
+development and retained #5472 admission/adopter work move to Immutable Dev
+Slot. Mutable/editable deployment is abandoned as a target, not preserved as a
+special exception. Added explicit bidirectional current-identity cutover
+qualification without resetting delivered Phase 2 or taking over maintenance,
+driver, native pilot or installed-adoption owners. No runtime was changed.
 
 ### 2026-10-22 - Execution core and public consumer implementation
 - Implemented the shared durable request journal, kernel-owned finite worker, checked nested handoff, canonical outcome/log observation and explicit restart-confirmed interruption settlement under #7758.
@@ -877,3 +931,36 @@ onto one branch.
 - Focused source/admission/custody tests exercise changed references, extra packages, source substitution, missing support and refusal without custody. Actual Windows construction reached the canonical build boundary but could not fetch the setuptools wheel metadata because the artifact endpoint's TLS handshake failed. TLS policy and dependency seasoning were not weakened; an isolated copy of the existing backend cache did not resolve that missing registry metadata.
 - Added a bounded manual Windows/Ubuntu foundation portfolio to the existing installation qualification workflow, separate from its unchanged scheduled/default context portfolio and from required unit-only CI. Use that fresh hosted lane to qualify real construction, reuse and installed source independence before marking this slice qualified. Native Python-free genesis and the parent completion gate remain open.
 - Draft #7989's initial hosted qualification ran real construction/reuse/source-removal/retained-worker assertions on exact `6592de659d69a21f0fbf69fa6d3ce05ba9b05ecd`: 57 Windows cases passed; Ubuntu passed 54 with three explicit Windows-only skips. The required guard correctly refused a dynamic runner label; changed the manual lane to two literal hosted jobs rather than weakening runner policy. Extended the real fixture with failed changed-source candidate preservation; qualify that updated head separately before readiness.
+
+### 2026-10-22 - Standalone construction participant reviewed and qualified
+
+- Final hosted run [39870616292](https://github.com/ThomasMichon/copilot-extensions/actions/runs/39870616292) exercised exact `774a5877132cce2074f1ded3ee9cf425082dc35a`: Windows passed 57 cases; Ubuntu passed 54 with three explicit Windows-only skips. Actual construction, unchanged completion reuse, failed changed-source health preserving the prior selection, source removal, installed health and retained finite-worker execution all ran. The unrelated exhaustive context portfolio did not run.
+- PR #7989 merged as `3d27573e3e6f0d29e7b67f10de2ff8dde5a38a52` after exact-head Copilot approval with no findings and successful required CI, using the authorized Maintainer exception only for the separate CODEOWNER vote. Managed worktree reconciliation preserved this continuing effort.
+- Re-read the parent Plan and Validation Plan: this closes only the bounded fixed-construction prerequisite. Preinstalled hosted Python and a fresh per-test cache do not qualify Python-free native genesis, caller loss during genesis, native concurrent cold admission, first-use publishers, active-request upgrade, macOS or host rollout.
+- Next: implement the native foundation progress producer and owner-bound participant bridge over the existing native kernel custody, then join canonical prerequisite acquisition to the qualified construction participant. Keep the existing queue/source/publication/maintenance owners and the parent effort Active. No source policy, host runtime, recurring enrollment or live deployment was changed.
+
+### 2026-10-22 - Owner-bound native participant bridge
+
+- Added the Python-free Windows owner side of the existing participant v1 protocol. Its supported constructor accepts the actual native operation object, exact execution root and operation identity; it cannot substitute a PID, flag or another path. Owner-thread issuance retains a read-only assertion of the original kernel handle, identity and path. The IPC thread cannot acquire, release or transfer custody.
+- Closing that handle revokes existing and future participants, including after a new owner reacquires the same path. Same-user named pipes retain bounded pickle-free JSON/HMAC exchange and simultaneous explicit participants; the existing Python consumer consumes the inherited transport before package subprocesses. The key is ephemeral, never a progress field or persisted receipt.
+- Local native qualification: 28 combined witness, existing transport and foundation-input tests pass, plus 10 operation-lock tests under the canonical containment supervisor. Expanded malformed controls found and fixed the native `InvalidDataException` hierarchy case instead of allowing an unhandled handler failure. Ruff, canonical physical-copy agreement and the 13-plugin install contract pass.
+- The existing manual foundation portfolio now includes the new bridge controls; ordinary scheduled/default adapter qualification and required unit-only CI remain unchanged. This slice adds a packaged asset to installed foundation health. Hosted construction will recheck actual wheel/health behavior before merge. Native Linux/macOS cold admission, fresh-host genesis, caller-loss construction, first-use adapters and the broader source/maintenance/adoption gates remain open.
+- Documentation impact: library ownership/API and validation sections describe the exact new native boundary; no adopter entry point is enabled. This closes part of the reviewed execution-owner intent without creating an installer, scheduler, Manager dependency or permission to deploy.
+- Hosted run 39876072544 passed against the initial bridge head: Windows 69 tests, Ubuntu 54 tests with 15 explicit Windows-only skips, including actual immutable construction and installed packaged-asset health. Review then identified pipe-instance exhaustion retiring the witness and premature disposal of task-owned pending-I/O handles. Fixed both before merge: bounded 16-client admission refuses excess without revoking existing custody, and task-owned wait handles survive asynchronous cancellation/completion. Fourteen native controls pass locally, including 16 overlapping genuine clients, excess refusal/capacity recovery and actual stalled-handshake timeout with a healthy participant retained. The updated head requires its own hosted qualification and review.
+- Hosted run 39877620575 also passed at the IPC-fix head. The next review found a cross-language spelling mismatch for an accepted directory root ending in a separator: .NET preserves it while Python `Path` removes it. The factory now removes trailing directory separators without crossing drive/UNC anchors before issuing/exporting the witness. Fifteen native controls pass locally, including the real trailing-root Python join. Final-head review and hosted qualification remain required before merge.
+- Review approved the root-fix head, but hosted run 39878691002 exposed the native progress fixture's 15-second startup bound before its first custody receipt (71 tests passed; that receipt timed out while the child remained live). Its bounded startup allowance is now 60 seconds, distinct from the unchanged held-operation and test/process limits, with an explicit compiler-loading diagnostic and captured native log on deadline. No assertion, lock contention, interruption fence or failed qualification is skipped; the changed head must pass the real lane before merge.
+- Hosted run 39879348725 passed at the readiness-fix head: Windows 72 tests, Ubuntu 54 tests with 18 explicit Windows-only skips. Review's remaining malformed-handshake concern was reproduced with `{"__type":{}}`: the .NET serializer raises `MissingMethodException`, a `MemberAccessException`, rather than its usual JSON argument exceptions. Deserialization now converts that malformed-metadata exception class into a connection-local invalid-frame rejection. Twenty-three native controls pass locally, including numeric overflow, recursion and top-level/nested serializer metadata, with genuine custody retained after every malformed peer. This is a real fix-forward, not dismissal of an unlocalized review summary.
+
+### 2026-10-22 - Native custody bridge reviewed and merged
+
+- #8005 merged as `6d430a0ef56109a4a0e855fd94730e9660b112d8` after an actual current-head Copilot approval with no open issues, all required CI and resolved review threads. Final hosted run 39881112573 exercised the approved `c25ea9fea0ebcca42b3076035e2bde9973f68554` head: Windows 80 tests passed; Ubuntu 54 passed with 26 explicit Windows-only skips. Actual immutable construction and installed native assets remain healthy; no failed qualification was bypassed.
+- Re-read the parent Plan and Validation Plan. Only the bounded native participant bridge item closes. The standalone producer, Python-free genesis, cold concurrency/caller loss, upgrades, native Linux/macOS admission, first-use publishers and the broader source/maintenance/adoption gates remain open. The worktree and parent effort continue; merge is not release installation, runtime rollout, recurring enrollment or pilot authorization.
+- Next: implement native construction progress and pre-staging source admission under the exact same execution root/lock, then connect canonical prerequisite acquisition and the already-qualified fixed builder. Preserve explicit refusal for unsupported/malformed prior state and queue/worker obligations rather than inventing a second installer or bypassing an existing executor.
+
+### 2026-10-22 - Python-free Windows progress and source admission
+
+- Added the packaged native progress API under actual `NativeOperationLock` custody. It emits and reads the existing version-1 foundation record, queries the real kernel boot identity, hashes the same fixed unlinked three-package inventory, and publishes flushed write-through replacements with bounded sharing retries. Completion checks the admitted record and source digest; failure preserves the canonical code, and uncertain settlement retains the interruption fence.
+- Cold-only admission refuses any existing SQLite queue or WAL/SHM/journal sidecar without opening, rewriting or rotating it. Queue-aware upgrades remain with the established Python authority; this avoids another SQLite provider and never assumes that a free lock settles abandoned plugin work. Native hashing binds source bytes; the already-qualified fixed builder still owns manifest/dependency validation before staging.
+- Local qualification: 66 focused native/protocol/input tests pass. Actual stock PowerShell with a Python-free PATH produces records consumed by Python, a differential corpus covers strict schema/duplicate/type/size/number/trailing-content behavior, Unicode inventory order matches Python, and real two-process custody excludes a competing cold caller. Further controls cover source substitution, linked inputs, missing artifacts/support, reader-sharing publication failure, real queued states, and native owner loss fencing pending Python work. Core PowerShell compilation, focused Ruff and the 13-plugin install contract pass.
+- Documentation impact: updated the library API/boundary and installed native-asset health. The existing opt-in hosted foundation portfolio includes these controls without enlarging required unit CI or its default scheduled adapter lane. Hosted installed-package qualification and current-head review are required before merge. This realizes the next part of the reviewed owner intent; no acquisition, first-use publisher, native Linux/macOS producer, rollout or enrollment is enabled, and the parent remains Active.
+- Hosted run 39886358923 passed at the initial progress head: Windows 91 tests, Ubuntu 54 with 37 explicit Windows-only skips, including actual immutable construction and installed native-asset health. Review then identified two concrete reader differences: nested missing roots raised `DirectoryNotFoundException`, and a leading serializer `__type` field became an unvalidated XML attribute. Both were reproduced before fixing. Missing-path observation now checks existing ancestors without creating absent ones, still refusing linked or file ancestors; parsing rejects unexpected root attributes. The 66-test packet passes with the exact leading-metadata and nested-absence regressions. The corrected head needs its own review and hosted qualification before merge.

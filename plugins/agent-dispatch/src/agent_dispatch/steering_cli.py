@@ -52,6 +52,8 @@ def _cmd_card_show(args: argparse.Namespace) -> int:
             "awaiting_steer": task.get("awaiting_steer"),
             "card_draft": task.get("card_draft"),
             "steering_revision": task.get("steering_revision"),
+            "card_draft_revision": task.get("card_draft_revision"),
+            "draft_scope": task.get("draft_scope"),
             "steers": steers,
         }
     )
@@ -71,13 +73,42 @@ def _cmd_card_draft_save(args: argparse.Namespace) -> int:
             )
             return 2
         fields[key.strip()] = value
+    try:
+        preconditions = _draft_preconditions(args)
+    except ValueError as exc:
+        print(f"agent-dispatch: {exc}", file=sys.stderr)
+        return 2
     with _core()._client(args) as c:
-        return _core()._emit(c.save_card_draft(args.task_id, fields=fields))
+        return _core()._emit(c.save_card_draft(
+            args.task_id, fields=fields,
+            **preconditions,
+        ))
 
 def _cmd_card_draft_clear(args: argparse.Namespace) -> int:
     """Clear a task's saved draft. Never touches awaiting_steer/status."""
+    try:
+        preconditions = _draft_preconditions(args)
+    except ValueError as exc:
+        print(f"agent-dispatch: {exc}", file=sys.stderr)
+        return 2
     with _core()._client(args) as c:
-        return _core()._emit(c.clear_card_draft(args.task_id))
+        return _core()._emit(c.clear_card_draft(args.task_id, **preconditions))
+
+
+def _draft_preconditions(args: argparse.Namespace) -> dict:
+    revision = getattr(args, "expected_revision", None)
+    draft = getattr(args, "expected_draft_revision", None)
+    queue = getattr(args, "expected_queue_id", None)
+    if revision is None and draft is None and queue is None:
+        return {}
+    if not revision or not draft:
+        raise ValueError("both --expected-revision and --expected-draft-revision are required")
+    result = {"expected_revision": revision, "expected_draft_revision": draft}
+    if queue is not None:
+        if not queue:
+            raise ValueError("--expected-queue-id must not be empty")
+        result["expected_queue_id"] = queue
+    return result
 
 def _cmd_steer(args: argparse.Namespace) -> int:
     """Submit an answer and have the coordinator resume the owning worktree."""
@@ -162,9 +193,15 @@ def register_steering_commands(sub) -> None:
     cds = cdsub.add_parser("save", help="persist a draft answer (--field k=v ...); never touches awaiting_steer/status")
     cds.add_argument("task_id")
     cds.add_argument("--field", action="append", metavar="KEY=VALUE", help="one draft answer field (repeatable)")
+    cds.add_argument("--expected-revision", help="require this exact card/ownership revision")
+    cds.add_argument("--expected-draft-revision", help="require the observed draft revision, including 'absent'")
+    cds.add_argument("--expected-queue-id", help="require this owner-reported durable queue identity")
     cds.set_defaults(func=_core()._cmd_card_draft_save)
     cdc = cdsub.add_parser("clear", help="clear a task's saved draft; never touches awaiting_steer/status")
     cdc.add_argument("task_id")
+    cdc.add_argument("--expected-revision", help="require this exact card/ownership revision")
+    cdc.add_argument("--expected-draft-revision", help="require the observed draft revision, including 'absent'")
+    cdc.add_argument("--expected-queue-id", help="require this owner-reported durable queue identity")
     cdc.set_defaults(func=_core()._cmd_card_draft_clear)
 
     sp = sub.add_parser(
