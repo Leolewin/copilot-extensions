@@ -7,12 +7,40 @@ from __future__ import annotations
 
 import os
 import re
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
+from subprocess import CompletedProcess
+from typing import Iterator
 
 from . import git_ops, git_tree_diff, output
 
 #: The identity of the probe commit :func:`squash_landed` builds (never a ref's).
 _PROBE_IDENTITY = ("-c", "user.name=agent-worktrees", "-c", "user.email=agent-worktrees@localhost")
+_report_history: ContextVar[
+    dict[tuple[tuple[str, ...], str], CompletedProcess[str]] | None
+] = ContextVar("finalize_report_history", default=None)
+
+
+@contextmanager
+def report_history_snapshot() -> Iterator[None]:
+    """Share history reads within one read-only report, never a pruning decision."""
+    token = _report_history.set({})
+    try:
+        yield
+    finally:
+        _report_history.reset(token)
+
+
+def _history_read(*args: str, cwd: str) -> CompletedProcess[str]:
+    snapshot = _report_history.get()
+    key = args, cwd
+    if snapshot is not None and key in snapshot:
+        return snapshot[key]
+    result = git_ops.git(*args, cwd=cwd, check=False)
+    if snapshot is not None:
+        snapshot[key] = result
+    return result
 
 
 @dataclass
@@ -59,6 +87,10 @@ def squash_landed(branch: str, upstream: str, cwd: str) -> bool | None:
     base_sha = base.stdout.strip()
     if base.returncode != 0 or not base_sha:
         return None
+    return _squash_from_base(branch, upstream, base_sha, cwd)
+
+
+def _squash_from_base(branch: str, upstream: str, base_sha: str, cwd: str) -> bool | None:
     trees = git_ops.git(
         "rev-parse", "--revs-only", "--end-of-options", f"{branch}^{{tree}}", f"{base_sha}^{{tree}}",
         cwd=cwd, check=False,
@@ -101,11 +133,11 @@ def creation_point(ref: str, cwd: str, *, published_bases: tuple[str, ...] = ())
     clone), names it, or one of the remote's tracking refs contains it now. ""
     when unknown or ambiguous: not a local branch, an expired or edited reflog,
     any other source, or no such proof."""
-    full = git_ops.git("rev-parse", "--symbolic-full-name", ref, cwd=cwd, check=False)
+    full = _history_read("rev-parse", "--symbolic-full-name", ref, cwd=cwd)
     name = full.stdout.strip()
     if full.returncode != 0 or not name.startswith("refs/heads/"):
         return ""
-    log = git_ops.git("reflog", "show", "--format=%H%x09%gs", name, "--", cwd=cwd, check=False)
+    log = _history_read("reflog", "show", "--format=%H%x09%gs", name, "--", cwd=cwd)
     entries = [ln for ln in log.stdout.splitlines() if ln.strip()]
     if log.returncode != 0 or not entries:
         return ""
@@ -115,14 +147,14 @@ def creation_point(ref: str, cwd: str, *, published_bases: tuple[str, ...] = ())
     if not subject.startswith(prefix) or not sha:
         return ""
     source = subject[len(prefix):].strip().removeprefix("refs/remotes/")
-    remotes = git_ops.git("remote", cwd=cwd, check=False).stdout.split()
+    remotes = _history_read("remote", cwd=cwd).stdout.split()
     if "/" not in source or source.partition("/")[0] not in remotes:
         return ""
     remote = source.partition("/")[0]
     remote_prefix = f"refs/remotes/{remote}/"
-    refs_r = git_ops.git(
+    refs_r = _history_read(
         "for-each-ref", "--format=%(refname)%09%(objectname)",
-        f"refs/heads/{source}", remote_prefix, cwd=cwd, check=False,
+        f"refs/heads/{source}", remote_prefix, cwd=cwd,
     )
     if refs_r.returncode != 0:
         return ""
@@ -137,12 +169,12 @@ def creation_point(ref: str, cwd: str, *, published_bases: tuple[str, ...] = ())
             remote_tips.add(object_id)
     created = sha if sha in remote_tips else ""
     if not created and remote_tips:
-        held_now = git_ops.git("for-each-ref", "--count=1", "--contains", sha, "--format=%(refname)",
-                               remote_prefix, cwd=cwd, check=False)
+        held_now = _history_read("for-each-ref", "--count=1", "--contains", sha, "--format=%(refname)",
+                                remote_prefix, cwd=cwd)
         created = sha if held_now.returncode == 0 and held_now.stdout.strip() else ""
     if not created:
         for logged in (f"refs/remotes/{source}", f"refs/remotes/{remote}/HEAD"):  # HEAD logs a clone
-            tracked = git_ops.git("reflog", "show", "--format=%H", logged, "--", cwd=cwd, check=False)
+            tracked = _history_read("reflog", "show", "--format=%H", logged, "--", cwd=cwd)
             if tracked.returncode == 0 and sha in {ln.strip() for ln in tracked.stdout.splitlines()}:
                 created = sha
                 break
@@ -165,15 +197,20 @@ def _later_resets_to_source(
         return created
     prefix = f"refs/remotes/{source.partition('/')[0]}/"
     sources = {f"refs/remotes/{source}"} | {b for b in published_bases if b.startswith(prefix)}
-    held: set[str] = set()
-    for qualified in sources:
-        short = qualified.removeprefix("refs/remotes/")
-        if git_ops.git("rev-parse", "--verify", "-q", f"refs/heads/{short}", cwd=cwd,
-                       check=False).returncode == 0:
-            continue
-        tips = git_ops.git("reflog", "show", "--format=%H", qualified, "--", cwd=cwd, check=False)
-        if tips.returncode == 0:
-            held.update(ln.strip() for ln in tips.stdout.splitlines())
+    shadows = {ref: ref.replace("refs/remotes/", "refs/heads/", 1) for ref in sources}
+    refs = _history_read(
+        "for-each-ref", "--format=%(refname)", *sorted(sources | set(shadows.values())), cwd=cwd,
+    )
+    if refs.returncode != 0:
+        return created
+    names = set(refs.stdout.splitlines())
+    qualified = sorted(ref for ref in sources if ref in names and shadows[ref] not in names)
+    if not qualified:
+        return created
+    tips = _history_read("reflog", "show", "--format=%H", *qualified, "--", cwd=cwd)
+    if tips.returncode != 0:
+        return created
+    held = {ln.strip() for ln in tips.stdout.splitlines()}
     point = created
     for entry in reversed(entries[:-1]):  # oldest first, after the creation
         sha, _, subject = entry.partition("\t")
@@ -196,10 +233,21 @@ def landing(branch: str, upstream: str, cwd: str, *, explain: bool = False) -> L
         result.cherry = not [ln for ln in cherry_r.stdout.splitlines() if ln.startswith("+")]
     if result.landed and not explain:
         return result
-    result.squash = squash_landed(branch, upstream, cwd)
+    base = git_ops.git("merge-base", "--all", upstream, branch, cwd=cwd, check=False)
+    bases = base.stdout.splitlines() if base.returncode == 0 else []
+    if not all(re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", sha) for sha in bases):
+        bases = []
+    if len(bases) > 1:
+        # Preserve each strategy's original ordering when no unique base exists.
+        result.squash = squash_landed(branch, upstream, cwd)
+    else:
+        result.squash = _squash_from_base(branch, upstream, bases[0], cwd) if bases else None
     if result.landed and not explain:
         return result
-    result.blobs = _blobs_on_upstream(branch, upstream, cwd)
+    if len(bases) > 1:
+        result.blobs = _blobs_on_upstream(branch, upstream, cwd)
+    else:
+        result.blobs = _blobs_from_base(branch, upstream, bases[0], cwd) if bases else False
     return result
 
 
@@ -230,12 +278,16 @@ def _blobs_on_upstream(branch: str, upstream: str, cwd: str) -> bool:
     )
     if merge_base_r.returncode != 0:
         return False
+    return _blobs_from_base(branch, upstream, merge_base_r.stdout.strip(), cwd)
+
+
+def _blobs_from_base(branch: str, upstream: str, base_sha: str, cwd: str) -> bool:
 
     def run_git(*args: str):
         return git_ops.git(*args, cwd=cwd, check=False)
 
     try:
-        changed_files = git_tree_diff.read(run_git, merge_base_r.stdout.strip(), branch)
+        changed_files = git_tree_diff.read(run_git, base_sha, branch)
         if not changed_files:
             return True
         if any(name in os.environ for name in (

@@ -1287,6 +1287,10 @@ without importing the installed application or writing a new receipt.
 For an older schema-3 manifest without `commandBinding`, its existing
 `source.path` is a candidate locator, not ownership by itself: the same
 canonical source/mode validation and exact helper-byte comparison still apply.
+Runtime repair captures that validated legacy owner in memory before native
+source acquisition, then revalidates its current locator and owner before
+effects. Automatic namespaced activation remains authoritative when present;
+no legacy receipt is written merely to make capture succeed.
 Unrelated bytes, missing ownership, indirect files, and inconsistent ownership records
 remain refusals; helper evolution does not require a growing release-hash list.
 
@@ -3127,6 +3131,14 @@ Their API and qualification boundary are in the
 They do not themselves construct a driver foundation or migrate any first-use
 publisher. Bootstrap source admission, durable interruption fencing and
 immutable publication remain consumer obligations.
+
+The finite Windows standalone consumer is
+`libs/update-driver/scripts/foundation-produce.ps1`: it composes those primitives
+with source-bound progress, frozen canonical acquisition and immutable
+construction under the same authority. The
+[producer contract](../libs/update-driver/README.md#finite-windows-foundation-producer)
+owns its API and qualification boundary. Ordinary first-use publication and
+queue-aware foundation upgrades are not enabled by that consumer.
 
 `libs/installer-engine/installer_engine.py` is the in-progress Python ownership
 seam for the mutable-dev-slot effort, not a completed installer adoption.
