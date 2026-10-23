@@ -316,6 +316,73 @@ This removes unnecessary history transfer from that job, not an allocation,
 workflow invocation or demonstrated promotion critical-path delay. Source
 review and actual trusted-control adoption remain distinct gates.
 
+### Owner reminder no-op admission
+
+The current Dev workflow inventory (October 23, source `80fb803c093e7f881d4b53a4a279efa42451511f`)
+contains 22 YAML files, 66 literal jobs and ten scheduled workflows. This is a
+source inventory, not executed coverage: some native jobs are explicitly
+unenrolled and their scheduled status output is not a test result. The older
+October 18 trigger table above remains historical; notably, current departure
+refreshes admit only closed/edited events and trusted-CI is manual-only.
+
+Three already completed Main reminder runs, `39852362163`, `39853993747` and
+`39858588255`, each contain three allocated jobs plus a synthetic identifier
+check. Their `remind-to-target-dev` jobs are `120081608557`, `120087299109` and
+`120103090149`: pickup takes three seconds each and execution takes two/four/two
+seconds. Timestamped logs show equal PR author/repository owner and the explicit
+legitimate-automated-PR skip. These are successful no-op allocations, not missing
+admission or scanning.
+
+The bounded Dev change adds owner inequality to that job's existing synchronize
+exclusion. The JavaScript, automated signatures, current-PR reread, trusted-bot
+marker deduplication, Main admission, identifier reporting, workflow triggers,
+concurrency and credentials stay unchanged. This can remove one no-op runner
+allocation per affected owner event after qualified control adoption; it removes
+no workflow invocation and establishes no hosted critical-path saving. Source
+contracts resolve the recorded Dev workflow separately from preserved Main, whose
+legacy admission remains accepted by the actual-controller compatibility test.
+Existing release/control ownership retains adoption and live-result acceptance;
+this slice starts no Main writer or manual validation run.
+
+### Periodic execution and cleanup publication - October 23 UTC
+
+The complete seven-day scheduled population, October 16 00:00 through
+October 23 01:30 UTC, has 46 runs across ten families: 25 failed, one cancelled
+and twenty successful. Every run is bound to its immutable cron recipe.
+Creation minus the latest nominal cron slot ranges from 11,165 to 26,385
+seconds, median 17,316.5 seconds. This is a schedule-admission observation,
+not a provider-reported intended time, internal queue measurement or SLA.
+Five complete first-attempt job sets separate ordinary three-second pickup
+from a cleanup job's 401-second pickup and 385-second execution. That run
+spends 360 seconds waiting for required checks; it is not proof of a failed
+test or permission to enlarge the wait.
+
+The full-suite rotation's seven failing Linux groups remain explicit
+escalations on #7377 to the existing #1303/#6142 repair owners, not accepted
+transfers or parent completion. Its successful status-only Windows selector
+does not constitute native execution. Installation-context's cancelled
+90-minute run and crash-diagnostics' cleanup failures retain separate repair
+obligations; their schedule declarations are not coverage.
+
+Cleanup run serialization ends when a run times out, but its generated PR
+can remain open. Complete file pages for #7603 and #7895 show 91 shared
+changefile-deletion paths, with the older PR's entire path set included in
+the newer one. Both are still existing-owner obligations, not permission to
+merge, close or replace either PR. The bounded source guard reads all open
+Dev PR metadata once, with paginated/slurped output and a 45-second provider
+deadline, after actual consumed deletions and the local path fence but before
+commit or push. Matching owner, repository, generated branch and workflow
+origin refuse another publication visibly, including drafts and holds.
+Provider/metadata errors also fail closed. The decision stays in trusted
+workflow YAML rather than mutable Dev code running with the release token.
+
+This addresses `minimal-redundant-invocations` and accountable maintenance
+without changing run cadence, credential custody, consumed-file selection,
+existing required checks, expected-head merge or the six-minute wait. It
+reduces duplicate publications, not scheduled invocations or coverage.
+Dev source delivery does not activate the independently owned Main recipe;
+natural prevention and operating-cost comparison remain open after adoption.
+
 ### Enforcement snapshot
 
 At the October 18 capture, the Dev ruleset checks were `workflow-lockdown-guard` and
