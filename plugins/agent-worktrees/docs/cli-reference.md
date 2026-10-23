@@ -996,7 +996,8 @@ on a cadence at two natural lifecycle boundaries -- **picker launch** and
   removed; an in-flight claimed resource, a `follow-up`-flagged, paired-pending,
   `empty`/conversation-only, dirty, wip, or unmerged worktree, and any live
   session/mux are all spared. No network fetch is done, so a merge not yet
-  locally provable simply waits for a later pass. Disable entirely with
+  locally provable simply waits for a later pass. Session-exit output reports
+  only the number collected, not an unbounded list of worktree IDs. Disable entirely with
   `AGENT_WORKTREES_NO_AUTO_CLEAN=1`.
 
 ## Installation & Config
@@ -1162,6 +1163,20 @@ to the effort after release.
 | `launch-update bootstrap\|reconcile\|staged` | Submit a fixed native maintenance phase to the shared installation driver (JSON result) |
 | `reconcile-plugins` | Reconcile repo-adopted plugin payloads + gated runtimes (JSON output, for launch wrappers) |
 | `uninstall-plugins` | Sweep every deployed core plugin runtime via each plugin's own uninstall action (JSON; dry-run by default) |
+
+### Bulk account resolution (`repos account list --json --with-resolutions`)
+
+This optional read-only form adds versioned `repository_accounts`,
+`owner_accounts` and `unmapped_owner_fallback` metadata to `account_map`.
+It uses one strict registry snapshot and the canonical `account-for` policy,
+with per-snapshot first-match indexes rather than repeated registry scans.
+Malformed account mappings are refused, not treated as an empty map.
+Exact registered targets take precedence over owner policy; bare registry names
+remain case-sensitive, while GitHub slugs and owners match case-insensitively.
+The explicit fallback flag means an otherwise unknown owner resolves to its
+literal name. Unreadable or malformed registry storage fails rather than
+certifying missing targets. Without the flag, the legacy JSON shape is unchanged.
+Consumers of older peers must retain their individual `account-for` fallback.
 
 ### Strict repository inventory (`repos list --strict --json`)
 

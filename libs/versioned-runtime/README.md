@@ -18,6 +18,13 @@ immutable and versioned".
 
 ## Package releases and runtime generations
 
+The [immutable development pattern](../../docs/patterns/mutable-dev-slot.md)
+sets the target for frozen, non-editable, source-hashed venvs and bidirectional
+current-generation handoff. Existing editable dev claims described below are
+legacy compatibility, not proof of full adoption; #5472's
+[successor effort](../../efforts/active/immutable-dev-slot/README.md) retains
+the remaining gates. This documentation change does not change the API.
+
 Selectors and retention leases name concrete slots. `package_version(slot_name)`
 separates an installer-generated `+repair.<32-hex-id>` suffix (or `.repair.<id>`
 after an existing local version) from its unchanged package version. Python and
@@ -280,6 +287,24 @@ uses a caller-owned private workspace, captures every previous target before
 replacement, and fsyncs each created-stage descriptor's proof before rename.
 Explicit targets may include outside-root global commands; the lifecycle caller
 still owns scope, source admission and installation authority.
+
+The optional keyword-only `before_effects` callback runs once after the complete
+context and receipt header exist, before any target stage or replacement.
+`publish_selectors(..., before_effects=callback)` supplies the same boundary
+after its receipt header. A lifecycle owner can sync that evidence and publish
+its durable pending intent here rather than referencing an unfinished producer.
+A callback failure prevents target effects; existing recovery and settlement
+rules still apply.
+
+`Receipt` writes and fsyncs its initial header in a unique private temporary,
+then publishes its final name with an atomic no-replace native rename. It
+reopens only the exact single-link producer-created object before appending.
+Windows uses non-replacing rename; Linux and macOS use the same no-replace
+native operation as installation-context's independently shipped slot publisher.
+An unavailable native operation or storage failure refuses explicitly; there is
+no check-then-replace or link-then-unlink fallback. Abandoned attempts remain
+evidence and cannot block a fresh attempt. An already-existing final name is
+never adopted or replaced, even when it contains identical bytes.
 
 Matching target-writer leases remain held until `keep()` or `rollback()`.
 `target_leases(root, targets, open_lock=None)` also accepts a pinned-directory
