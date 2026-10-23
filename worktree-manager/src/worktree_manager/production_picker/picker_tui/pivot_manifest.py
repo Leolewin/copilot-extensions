@@ -411,8 +411,10 @@ def parse_manifest(data: Mapping[str, object], *, name: str, source_path: str) -
     if not isinstance(data, Mapping):
         raise ManifestError("manifest root must be a JSON object")
     from worktree_manager.configuration_preview import validate_preview_actions
+    from worktree_manager.form_requests import validate_request_placement
     try:
         validate_preview_actions(data)
+        validate_request_placement(data)
     except ValueError as exc:
         raise ManifestError(str(exc)) from exc
 

@@ -6,7 +6,7 @@ authority. Only a currently attributed provider can interpret its request.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 import json
 from pathlib import Path
 import re
@@ -15,6 +15,16 @@ import uuid
 
 from .form_drafts import read_path
 from .form_draft_storage import write_record
+
+
+def validate_request_placement(data: Mapping) -> None:
+    if data.get("placement") != "config":
+        return
+    for key in ("actions", "view_actions"):
+        entries = data.get(key)
+        if isinstance(entries, Sequence) and not isinstance(entries, (str, bytes)):
+            if any(isinstance(item, Mapping) and item.get("request") is not None for item in entries):
+                raise ValueError("request forms require an operational pivot; Configuration uses Apply/Cancel")
 
 
 def parse_request(value: object) -> dict | None:
@@ -146,7 +156,7 @@ def resolve_request(record: dict, registrations) -> tuple:
             or not isinstance(record.get("values"), dict)):
         raise ValueError("Legacy or invalid recovery is read-only")
     matches = [
-        (reg, action) for reg in registrations for action in reg.actions
+        (reg, action) for reg in registrations for action in (*reg.actions, *reg.view_actions)
         if action.form and action.form.get("request")
         and request_contract(reg, action) == record.get("contract")
     ]

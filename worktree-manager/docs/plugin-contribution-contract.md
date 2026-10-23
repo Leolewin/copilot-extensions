@@ -220,7 +220,7 @@ recovery contract, not inferred from a saved draft.
 
 ### Original-request recovery
 
-A row form may declare `request` alongside its `run` command:
+A row or view-scoped form may declare `request` alongside its `run` command:
 
 ```json
 {
@@ -238,6 +238,9 @@ reconstructing the request from current defaults. `{json.<context-path>}` is a
 single-pass JSON data token, including nested mappings; values containing
 braces remain literal. Prepare and receipt commands are resolved to the
 contributing payload, like `run` and draft commands.
+Request forms are operational-pivot actions; Configuration rejects this
+declaration rather than silently bypassing it through its separate Apply/Cancel
+editor.
 
 After explicit Confirm, Manager generates one request identity and invokes
 read-only Prepare off the render flow. The provider returns a finite JSON
@@ -263,6 +266,9 @@ data and current registry attribution only, never invokes provider commands.
 Before offering receipt/retry and again before execution, Manager re-scans
 the current attributed contribution and matches the original source,
 installation-resolved list command and complete action/form contract.
+This execution lookup uses no last-known display snapshot: an indeterminate
+registry, activation or template read cannot authorize a command. The normal
+display cache may still preserve its rows during that temporary uncertainty.
 Saved command strings are comparison data, not executable authority.
 Unavailable/changed providers and legacy, corrupt or inconsistent records
 remain inspectable read-only; they are never adopted into another question.

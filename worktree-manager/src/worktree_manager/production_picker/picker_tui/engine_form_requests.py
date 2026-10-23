@@ -27,7 +27,7 @@ class RetainedResponsesMenu(TaskMenuScreen):
 def current_request_registrations():
     from . import pivots
 
-    report = pivots.scan_pivot_registry(materialize=False)
+    report = pivots.scan_pivot_registry(materialize=False, previous={})
     return [
         contribution.pivot for contribution in report.contributions
         if contribution.owner and contribution.pivot is not None
@@ -37,7 +37,7 @@ def current_request_registrations():
 def current_request_action(contract):
     matches = [
         (reg, action) for reg in current_request_registrations()
-        for action in reg.actions
+        for action in (*reg.actions, *reg.view_actions)
         if action.form and action.form.get("request")
         and request_contract(reg, action) == contract
     ]

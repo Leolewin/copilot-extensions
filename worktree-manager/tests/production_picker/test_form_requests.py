@@ -10,7 +10,7 @@ import pytest
 from textual.widgets import Input, OptionList, Static
 
 from worktree_manager.form_requests import (
-    prepared_record, recovery_records, recovery_text,
+    prepared_record, recovery_records, recovery_text, request_contract,
     resolve_request, retain_request,
 )
 from worktree_manager.plugin_contracts import ContractError, parse_manifest
@@ -43,6 +43,10 @@ def registered(raw=None):
     return pivots.parse_manifest(raw or manifest(), name="examples", source_path="owned.json")
 
 
+def form_action(reg):
+    return next(action for action in (*reg.actions, *reg.view_actions) if action.form)
+
+
 def context():
     return {
         "request_id": "original/id", "task_id": "task-one", "machine": "host",
@@ -55,17 +59,20 @@ def original(reg=None):
     reg = reg or registered()
     ctx = context()
     return prepared_record(
-        reg, reg.actions[0], ctx, {"answer": "literal {task_id}\n[red]not markup"},
+        reg, form_action(reg), ctx, {"answer": "literal {task_id}\n[red]not markup"},
         {"card": "original", "revision": "original-revision"},
         {"id": ctx["request_id"], "scope": ctx["owner_scope"], "wire": "original"},
     )
 
 
-def test_both_parsers_preserve_request_abi_and_json_tokens_are_single_pass():
+@pytest.mark.parametrize("view", [False, True])
+def test_both_parsers_preserve_request_abi_and_json_tokens_are_single_pass(view):
     raw = manifest()
+    if view:
+        raw["view_actions"].append(raw["actions"].pop())
     general = parse_manifest(raw, name="examples", marketplace="demo", plugin="provider", source_path="owned.json")
     reg = registered(raw)
-    assert general.pivot.actions[0].form == reg.actions[0].form
+    assert form_action(general.pivot).form == form_action(reg).form
     ctx = context()
     assert json.loads(pivots.format_form_template(
         ["{json.owner_scope}"], ctx, {},
@@ -89,6 +96,18 @@ def test_unknown_or_malformed_request_contract_is_incompatible(mutation):
     with pytest.raises(ContractError, match="request"):
         parse_manifest(raw, name="examples", marketplace="demo", plugin="provider", source_path="owned.json")
     with pytest.raises(ValueError, match="request"):
+        registered(raw)
+
+
+@pytest.mark.parametrize("view", [False, True])
+def test_configuration_never_silently_ignores_an_operational_request_contract(view):
+    raw = manifest()
+    raw.update(placement="config", scope="global")
+    if view:
+        raw["view_actions"].append(raw["actions"].pop())
+    with pytest.raises(ContractError, match="request forms require an operational pivot"):
+        parse_manifest(raw, name="examples", marketplace="demo", plugin="provider", source_path="owned.json")
+    with pytest.raises(ValueError, match="request forms require an operational pivot"):
         registered(raw)
 
 
@@ -137,6 +156,63 @@ def test_recovery_rescans_current_attributed_template_and_refuses_removed_or_man
     manual = registry / "manual.json"
     manual.write_text(json.dumps(manifest()), encoding="utf-8")
     assert requests.current_request_registrations() == []
+
+
+@pytest.mark.parametrize("uncertainty", ["registry", "entry", "template", "activation"])
+def test_indeterminate_reads_never_reuse_display_cache_as_execution_authority(
+    tmp_path, monkeypatch, uncertainty,
+):
+    from test_pivot_registry import _active_report, _command
+    from dropin_registry import ScanAuthority, ScanSnapshot
+    from plugin_activation import ActivationReport
+    from worktree_manager.production_picker.picker_tui import pivot_registry_scan, tasks
+    root, registry = tmp_path / "provider", tmp_path / "pivots"
+    _command(root, "provider")
+    template = root / "pivots" / "examples.json"
+    template.parent.mkdir(parents=True)
+    template.write_text(json.dumps(manifest()), encoding="utf-8")
+    activation = _active_report("provider@example-marketplace", root)
+    monkeypatch.setenv("AGENT_WORKTREES_PIVOTS_DIR", str(registry))
+    monkeypatch.setattr(pivot_registry_scan, "resolve_active_plugins", lambda: activation)
+    reg = pivots.scan_pivot_registry(registry, activation_report=activation).pivots[0]
+    record = original(reg)
+    path = retain_request(tmp_path / "drafts", record)
+    cached = dict(pivot_registry_scan._LAST_KNOWN[str(registry.resolve())])
+    if uncertainty == "registry":
+        monkeypatch.setattr(
+            pivot_registry_scan, "scan_directory",
+            lambda *_args, **_kwargs: ScanSnapshot("pivots", ScanAuthority.INDETERMINATE),
+        )
+    elif uncertainty == "entry":
+        read = pivot_registry_scan._read_json
+
+        def unreadable(path):
+            if path == registry / "examples.json":
+                raise PermissionError("entry temporarily unreadable")
+            return read(path)
+
+        monkeypatch.setattr(pivot_registry_scan, "_read_json", unreadable)
+    elif uncertainty == "template":
+        def unreadable_template(*_args):
+            raise PermissionError("template temporarily unreadable")
+
+        monkeypatch.setattr(pivot_registry_scan, "_read_verified_template", unreadable_template)
+    else:
+        activation = ActivationReport(ScanAuthority.INDETERMINATE, {})
+
+    def unexpected(*_args, **_kwargs):
+        pytest.fail("uncertain attribution must not invoke any provider command")
+
+    monkeypatch.setattr(tasks.RegisteredPivotRuntime, "run_resolved", unexpected)
+    monkeypatch.setattr(tasks.RegisteredPivotRuntime, "run_json_resolved", unexpected)
+    assert pivots.scan_pivot_registry(registry, materialize=False).pivots == [reg]
+    with pytest.raises(ValueError, match="unavailable or changed"):
+        requests.current_request_action(record["contract"])
+    for receipt in (False, True):
+        with pytest.raises(ValueError, match="unavailable or changed"):
+            requests.run_retained_request(path, record, receipt=receipt)
+    assert pivot_registry_scan._LAST_KNOWN[str(registry.resolve())] == cached
+    assert path.exists()
 
 
 def test_retained_request_is_detached_and_never_captures_unreferenced_task_output(tmp_path):
@@ -211,7 +287,7 @@ def test_changed_current_provider_or_contract_is_not_saved_execution_authority(c
     assert record == original(reg)
 
 
-def provider(tmp_path):
+def provider(tmp_path, *, view=False):
     script = tmp_path / "provider.py"
     script.write_text(
         "import json,sys\n"
@@ -234,18 +310,23 @@ def provider(tmp_path):
     for verb in ("prepare", "receipt"):
         action["request"][verb][:1] = [sys.executable, str(script), str(tmp_path)]
     action["run"][:1] = [sys.executable, str(script), str(tmp_path)]
+    if view:
+        raw["view_actions"].append(raw["actions"].pop())
     return registered(raw)
 
 
-def test_actual_runtime_replay_after_response_loss_and_restart_keeps_original_wire(tmp_path, monkeypatch):
-    reg = provider(tmp_path)
+@pytest.mark.parametrize("view", [False, True])
+def test_actual_runtime_replay_after_response_loss_and_restart_keeps_original_wire(tmp_path, monkeypatch, view):
+    reg = provider(tmp_path, view=view)
+    action = form_action(reg)
     monkeypatch.setattr(requests, "current_request_registrations", lambda: [reg])
+    assert requests.current_request_action(request_contract(reg, action)) == (reg, action)
     ctx = context()
     from worktree_manager.production_picker.picker_tui import tasks
-    argv = pivots.format_form_template(reg.actions[0].form["request"]["prepare"], ctx, {"answer": "{task_id}"})
+    argv = pivots.format_form_template(action.form["request"]["prepare"], ctx, {"answer": "{task_id}"})
     ok, output = tasks.RegisteredPivotRuntime(reg).run_json_resolved(argv)
     assert ok, output
-    record = prepared_record(reg, reg.actions[0], ctx, {"answer": "{task_id}"}, {}, json.loads(output))
+    record = prepared_record(reg, action, ctx, {"answer": "{task_id}"}, {}, json.loads(output))
     path = retain_request(tmp_path / "drafts", record)
     ok, output = requests.run_retained_request(path, record)
     assert not ok and "accepted response lost" in output and path.exists()
@@ -262,8 +343,9 @@ def test_actual_runtime_replay_after_response_loss_and_restart_keeps_original_wi
     assert path.exists()
 
 
+@pytest.mark.parametrize("view", [False, True])
 def test_native_prepare_persists_before_submit_and_global_recovery_cancel_never_erases(
-    tmp_path, monkeypatch,
+    tmp_path, monkeypatch, view,
 ):
     from test_config_actions import _wait
     from test_picker_tui import _fixture_source, _wait_for_initial_setup
@@ -275,7 +357,7 @@ def test_native_prepare_persists_before_submit_and_global_recovery_cancel_never_
 
     directory = tmp_path / "drafts"
     monkeypatch.setenv("AGENT_WORKTREES_STEER_DRAFTS", str(directory))
-    reg = provider(tmp_path)
+    reg = provider(tmp_path, view=view)
     monkeypatch.setattr(requests, "current_request_registrations", lambda: [reg])
 
     async def run():
@@ -289,7 +371,7 @@ def test_native_prepare_persists_before_submit_and_global_recovery_cancel_never_
                 "title": "Original question", "body": "Read before confirming",
                 "fields": [{"name": "answer", "type": "text"}],
             }}
-            picker._open_pivot_form(reg, reg.actions[0], rec, rec, "Original question")
+            picker._open_pivot_form(reg, form_action(reg), rec, rec, "Original question")
             await _wait(pilot, lambda: isinstance(app.screen, PivotFormScreen))
             form = app.screen
             form.query_one(Input).value = "literal {task_id} [red]plain"

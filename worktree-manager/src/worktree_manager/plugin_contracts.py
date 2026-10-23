@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from .configuration_preview import validate_preview_actions
 from .form_drafts import parse_draft
+from .form_requests import validate_request_placement
 
 from .harness_state import (
     build_projects,
@@ -411,6 +412,7 @@ def parse_manifest(
         raise ContractError("manifest root must be a JSON object")
     try:
         validate_preview_actions(data)
+        validate_request_placement(data)
     except ValueError as exc:
         raise ContractError(str(exc)) from exc
     raw_version = data.get("schema_version")
