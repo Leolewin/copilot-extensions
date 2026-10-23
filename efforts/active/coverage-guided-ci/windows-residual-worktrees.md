@@ -87,6 +87,84 @@ the still-open #5694/#5682 qualification and residual-settlement obligation.
 
 ## Admitted narrow batches
 
+### B-FAST-FORWARD private aligned repository inputs
+
+The fast-forward module publishes its unchanged bare origin, publisher and
+aligned clone once per contained test sandbox, then copies every file into
+private per-case stores and repairs both origin URLs. All later pushes,
+local commits, dirty worktrees, real fetches and fetch-failure mutations
+remain inside their original cases. No assertion, mark or selection changes.
+
+An additional guard compares every non-config byte and checks the repaired
+URLs, distinct source/sibling files and absence of object alternates. A real
+push, fetch, local commit and private object deletion leave the seed and
+sibling byte-identical. The deletion explicitly makes the copied object
+writable because newly created Git objects may be read-only on Windows.
+
+Repeated fixture setup fell from the measured 2.15-2.74 seconds per case to
+roughly 0.52-0.59 seconds, excluding the one session build. All 51 fast-forward
+and adjacent controls pass in 22.14 seconds preparation/cleanup inclusive,
+with exactly two workers and unchanged item, process, memory and native
+deadlines. The unchanged normal group still reaches its 240-second cap;
+this focused improvement is not normal-group or aggregate qualification.
+
+### B-LANDING-BASE one fresh unique merge base per landing evaluation
+
+Squash and blob checks within one `landing` evaluation share a single fresh
+`merge-base --all` result only when it contains exactly one complete object
+ID. Failed, empty or malformed evidence does not run either strategy.
+Criss-cross histories with multiple merge bases retain each strategy's
+original query and argument order. Standalone squash/blob helpers still read
+their own base, and a later landing evaluation always queries again. There is
+no cross-call graph, ref, history, report or pruning cache.
+
+Real-Git controls verify one base query for a different change, another fresh
+query after an upstream mutation, refusal for an unreadable upstream, and
+both original strategy queries for an actual criss-cross graph. Focused
+controls additionally cover complete SHA-1/SHA-256 IDs and failed, empty,
+truncated or whitespace-corrupted results.
+
+Native functional validation retained exactly two workers and all original
+item, process, memory and native deadlines. All 150 creation, precondition,
+open-PR, blob-comparison and focused merge-base controls pass in 104.64 seconds
+preparation/cleanup inclusive. Complementary functional-only landing selections
+cover the prior 69-case roster: 59 pass in 157.34 seconds inclusive and ten
+historical-reset cases pass in 67.03 seconds; the six additional object-ID
+controls are in the 150-case run.
+
+These are not normal-group or aggregate qualifications. An unpartitioned
+landing/blob attempt lost a worker before reaching the 240-second group cap;
+subsequent immediate-reporting diagnostics covered every landing case without
+reproducing that loss. A separate unpartitioned landing attempt also hit the
+cap without an item failure. The timing and worker-loss investigation remain
+part of the open parent qualification gate; no deadline or selection change
+is credited as a fix.
+
+### B-LANDING-SYNC private pre-rewrite reset inputs
+
+The five later-work variants and the missing-remote-proof case now copy one
+session-published real Git setup ending immediately after the worktree branch
+is reset to the newer remote main tip. The PR branch remains checked out in
+that seed. Each case still performs its own subsequent checkout, local commits
+(including empty/reverted/other-branch work), remote history rewrite, fetch,
+optional reflog expiration, creation-point query and finalization assertions.
+No mutation moves across the reset or rewrite boundary.
+
+The existing topology-copy guard also exercises this sixth seed: every copied
+non-config byte, both repaired origin URLs, main/dev/head/reset relationships,
+creation/reset reflog entries, checked-out file content, and creation inference.
+Mutating and publishing from one copy must leave the source and sibling
+byte-identical, with distinct object files and no alternates.
+
+Before this change, two representative cases spent 4.27-4.33 seconds each
+inside the identical two-commit, squash and sync setup helpers. With the new
+fixture, all twelve affected behavior/isolation cases pass in 75.11 seconds
+preparation/cleanup inclusive. The complete, unpartitioned landing module
+passes all 68 cases in 236.92 seconds inclusive (228.30 seconds pytest), with
+exactly two work-stealing workers and the original item, process, memory and
+native deadlines. This is module-level functional evidence, not qualification
+of an unchanged normal group or the complete native portfolio.
+
 ### C one fresh committed-config absence probe
 
 Each committed branch resolution first probes its literal candidate paths

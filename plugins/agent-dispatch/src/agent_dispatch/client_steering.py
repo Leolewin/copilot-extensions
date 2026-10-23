@@ -14,10 +14,12 @@ import httpx
 
 from .client_transport import default_idempotent_retries
 from .client_errors import DispatchError, DispatchUpgradeRequired
+from .client_steering_requests import PreparedSteeringClientMixin
 from .steering import steer_request_fingerprint, steer_wake_message
+from .steering_requests import validate_steering_scope
 
 
-class SteeringClientMixin:
+class SteeringClientMixin(PreparedSteeringClientMixin):
     """``card``/``steer`` methods, mixed into ``DispatchClient``.
 
     Relies on ``self._unwrap`` and ``self._http`` from the composing class.
@@ -32,10 +34,19 @@ class SteeringClientMixin:
             )
         )
 
-    def save_card_draft(self, task_id: str, *, fields: dict) -> dict:
+    def save_card_draft(
+        self, task_id: str, *, fields: dict, expected_revision: str | None = None,
+        expected_draft_revision: str | None = None,
+        expected_queue_id: str | None = None,
+    ) -> dict:
         """Persist an operator's not-yet-submitted draft answer. Never touches
         ``awaiting_steer``/status -- the task stays blocked exactly as before,
         durably visible from any surface/machine via ``get``/``card show``."""
+        if any(v is not None for v in (expected_revision, expected_draft_revision, expected_queue_id)):
+            return self._guarded_card_draft(
+                task_id, fields, expected_revision, expected_draft_revision,
+                clear=False, expected_queue_id=expected_queue_id,
+            )
         return self._unwrap(
             self._http.post(
                 f"/tasks/{task_id}/card-draft",
@@ -43,9 +54,72 @@ class SteeringClientMixin:
             )
         )
 
-    def clear_card_draft(self, task_id: str) -> dict:
+    def clear_card_draft(
+        self, task_id: str, *, expected_revision: str | None = None,
+        expected_draft_revision: str | None = None,
+        expected_queue_id: str | None = None,
+    ) -> dict:
         """Clear a task's saved draft. Never touches ``awaiting_steer``/status."""
+        if any(v is not None for v in (expected_revision, expected_draft_revision, expected_queue_id)):
+            return self._guarded_card_draft(
+                task_id, {}, expected_revision, expected_draft_revision,
+                clear=True, expected_queue_id=expected_queue_id,
+            )
         return self._unwrap(self._http.delete(f"/tasks/{task_id}/card-draft"))
+
+    def _guarded_card_draft(
+        self, task_id: str, fields: dict, expected_revision: str | None,
+        expected_draft_revision: str | None, *, clear: bool, expected_queue_id: str | None = None,
+    ) -> dict:
+        if not expected_revision or not expected_draft_revision:
+            raise ValueError("both expected card and draft revisions are required")
+        health = self.health()
+        version = health.get("card_draft_cas")
+        if type(version) is not int or version < 1:
+            raise DispatchUpgradeRequired("coordinator lacks guarded card drafts")
+        operation = "guarded-clear" if clear else "guarded"
+        scope_body = {}
+        if expected_queue_id is not None:
+            version = health.get("card_draft_scope")
+            if not expected_queue_id or type(version) is not int or version < 1:
+                raise DispatchUpgradeRequired("coordinator lacks queue-bound card drafts")
+            operation = "scoped-clear" if clear else "scoped"
+            scope_body = {"expected_queue_id": expected_queue_id}
+        try:
+            result = self._unwrap(self._http.post(
+                f"/tasks/{task_id}/card-draft/{operation}",
+                json={
+                    "fields": fields, "expected_revision": expected_revision,
+                    "expected_draft_revision": expected_draft_revision,
+                    **scope_body,
+                },
+            ))
+        except DispatchError as exc:
+            if exc.status_code in (404, 405) and exc.detail in ("Not Found", "Method Not Allowed"):
+                raise DispatchUpgradeRequired("coordinator lacks guarded card drafts") from exc
+            raise
+        if (
+            not isinstance(result, dict) or result.get("id") != task_id
+            or result.get("steering_revision") != expected_revision
+            or not isinstance(result.get("card_draft_revision"), str)
+            or not result["card_draft_revision"]
+            or "card_draft" not in result
+            or (expected_queue_id is not None and (
+                not isinstance(result.get("draft_scope"), dict)
+                or result["draft_scope"].get("queue") != expected_queue_id
+            ))
+            or (clear and (
+                result["card_draft"] is not None or result["card_draft_revision"] != "absent"
+            ))
+            or (not clear and (
+                not isinstance(result.get("card_draft"), dict)
+                or result["card_draft_revision"] in ("absent", expected_draft_revision)
+                or result["card_draft"].get("fields") != fields
+                or result["card_draft"].get("steering_revision") != expected_revision
+            ))
+        ):
+            raise DispatchError(502, "no verifiable guarded draft acknowledgement; refresh before retrying")
+        return result
 
     def _coordinator_supports_steer_idempotency_key(self) -> bool:
         """Whether this coordinator's ``/health`` advertises that it
@@ -76,6 +150,7 @@ class SteeringClientMixin:
         expected_status: str | None = None,
         expected_revision: str | None = None,
         idempotency_key: str | None = None,
+        expected_scope: dict | None = None,
     ) -> dict:
         """Submit an answer and ask the coordinator to resume the task owner.
 
@@ -97,8 +172,14 @@ class SteeringClientMixin:
         retried, or the "ambiguous timeout" becomes a guaranteed duplicate.
         """
         guarded = expected_revision is not None
+        if expected_scope is not None:
+            expected_scope = validate_steering_scope(expected_scope)
+            if not expected_revision or not expected_status or not idempotency_key:
+                raise ValueError("scope-bound steering requires revision, status and request identity")
         if guarded:
-            self._require_steering_acceptance()
+            health = self._require_steering_acceptance()
+            if expected_scope is not None:
+                self._require_steering_request_context(health)
             message = steer_wake_message(task_id, message)
         key = idempotency_key or (
             "card:" + steer_request_fingerprint(
@@ -117,12 +198,19 @@ class SteeringClientMixin:
         if guarded:
             payload["expected_revision"] = expected_revision
         path = f"/tasks/{task_id}/steer" + ("/guarded" if guarded else "")
+        if expected_scope is not None:
+            path = f"/tasks/{task_id}/steer/scoped"
+            payload["expected_scope"] = expected_scope
         attempts = default_idempotent_retries() + 1
         delay = 0.1
         checked_capability = guarded
         for attempt in range(attempts):
             try:
                 result = self._unwrap(self._http.post(path, json=payload))
+                if expected_scope is not None and (
+                    not isinstance(result, dict) or result.get("steering_scope") != expected_scope
+                ):
+                    raise DispatchError(502, "no verifiable steering scope acknowledgement")
                 if guarded:
                     receipt = result.get("steer_receipt") if isinstance(result, dict) else None
                     accepted = self._steer_acceptance(receipt, task_id, key)
@@ -155,10 +243,12 @@ class SteeringClientMixin:
                 delay = min(delay * 2, 1.0)
         raise AssertionError("unreachable")  # pragma: no cover
 
-    def _require_steering_acceptance(self) -> None:
-        version = self.health().get("steering_acceptance")
+    def _require_steering_acceptance(self) -> dict:
+        health = self.health()
+        version = health.get("steering_acceptance")
         if type(version) is not int or version < 1:
             raise DispatchUpgradeRequired("coordinator lacks guarded steering acceptance")
+        return health
 
     @staticmethod
     def _steer_acceptance(receipt: object, task_id: str, request_id: str) -> dict:
@@ -178,12 +268,25 @@ class SteeringClientMixin:
             )
         return accepted
 
-    def steer_receipt(self, task_id: str, request_id: str) -> dict:
+    def steer_receipt(
+        self, task_id: str, request_id: str, *, expected_scope: dict | None = None,
+    ) -> dict:
         """Inspect this exact request's acceptance, consumption and original wake."""
-        self._require_steering_acceptance()
+        health = self._require_steering_acceptance()
+        path = f"/tasks/{task_id}/steer-receipt"
+        params = {"request_id": request_id}
+        if expected_scope is not None:
+            expected_scope = validate_steering_scope(expected_scope)
+            self._require_steering_request_context(health)
+            path += "/scoped"
+            params.update(expected_scope)
         receipt = self._unwrap(
-            self._http.get(f"/tasks/{task_id}/steer-receipt", params={"request_id": request_id})
+            self._http.get(path, params=params)
         )
+        if expected_scope is not None and (
+            not isinstance(receipt, dict) or receipt.get("steering_scope") != expected_scope
+        ):
+            raise DispatchError(502, "no verifiable steering receipt scope")
         self._steer_acceptance(receipt, task_id, request_id)
         return receipt
 
