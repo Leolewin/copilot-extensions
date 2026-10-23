@@ -122,3 +122,56 @@ policy. Startup callers still need independent clocks and incremental nested
 progress under the
 [shared contract](../../../docs/patterns/progress-and-timeouts.md); repairing
 pipe cleanup alone does not qualify that adoption.
+
+## Observed ordinary-session startup
+
+`send` can opt into startup observation for an **existing ordinary hosted
+session**:
+
+```text
+agent-bridge --json send <session> --prompt-file - --no-wait --startup-communication-timeout 30 --startup-process-timeout 300
+```
+
+This requires daemon HTTP protocol 46. An older daemon or a missing/represented
+target refuses before submission; observation never falls back to creating an
+agent. The selected boundary defaults are 30 seconds of renewable contact and
+five minutes of independent startup grace, with readiness expected within one
+minute end-to-end. Explicit flags may select smaller test or operation budgets.
+The five-minute budget does not apply to the turn after readiness.
+
+Progress is flushed to stderr as `@@agent-startup ` plus one JSON object per
+line; stdout remains one final `send --json` result. Every target event,
+including unfamiliar kinds and target keepalives, counts as contact. Progress
+retains phase/event names without forwarding opaque event data. Local
+reconnect timers and cached protocol metadata do not renew target contact.
+The existing session SSE channel retains its event cursor and continuity
+across observation-only reconnects; the resume POST is sent only once.
+The controlled subscription uses a distinct observer audience and the cursor
+endpoint's authoritative head/continuity snapshot. An empty log uses the
+existing initial controlled-stream contract until its first epoch is known;
+it is not an invalid transient resume. Subscription bookkeeping does not
+acknowledge or advance the actual work caller's delivery cursor.
+
+The service reports current lifecycle-lock, preparation, Session Host and ACP
+phases, including honest waiting updates. Local and SSH Worktrees capture
+forwards incremental preparation activity instead of withholding it until
+the final JSON. A failed progress writer is logged without changing lifecycle
+ownership.
+
+Communication or startup-lifetime expiry exits 70 with `outcome: unknown`,
+`retryable: false`, the expired clock, phase and elapsed lifetime. Losing this
+observer does not cancel the service's original startup operation or prove it
+stopped. Inspect that session and its existing receipt/history; do not infer
+permission to resend or replace it. Explicit cancellation remains with the
+operation owner.
+
+After readiness, prompt admission uses a separate short response wait and
+`no_resume: true`: a race back to STOPPED cannot silently begin another
+startup. A lost admission acknowledgement also exits 70 with
+`reason: admission_unknown`, not a retryable refusal or a second submission.
+This includes truncated HTTP bodies, invalid UTF-8/JSON and incomplete
+acknowledgement shapes after acceptance. An observation/decoding failure that
+did not exhaust a clock reports `clock: null`, rather than claiming a timer
+expired. Explicit HTTP refusals retain their existing classification.
+Successful admission retains the existing turn-streaming behavior, including
+long-running turns.

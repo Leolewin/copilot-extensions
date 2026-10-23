@@ -6,6 +6,7 @@ Uses only stdlib (urllib) to avoid adding runtime dependencies.
 from __future__ import annotations
 
 import json
+import http.client
 import os
 import sys
 import urllib.error
@@ -369,6 +370,10 @@ class BridgeClient(AnswerClientMixin, SessionStartClientMixin, CliModeClientMixi
             try:
                 with urllib.request.urlopen(req, timeout=sock_timeout) as resp:
                     self._mark_connected()
+                    from .startup_observation import current
+                    observation = current()
+                    if observation is not None and not observation.clock.ready:
+                        observation.received(event="bridge-response")
                     if resp.status == 204:
                         return None
                     return json.loads(resp.read().decode())
@@ -515,6 +520,7 @@ class BridgeClient(AnswerClientMixin, SessionStartClientMixin, CliModeClientMixi
         *,
         params: dict[str, str] | None = None,
         body: dict[str, Any] | None = None,
+        request_timeout: float | None = None,
     ) -> SseStream:
         """Stream SSE events from an endpoint. Yields parsed event dicts.
 
@@ -537,7 +543,9 @@ class BridgeClient(AnswerClientMixin, SessionStartClientMixin, CliModeClientMixi
             req.add_header("Content-Type", "application/json")
 
         try:
-            resp = urllib.request.urlopen(req, timeout=120)
+            resp = urllib.request.urlopen(
+                req, timeout=120 if request_timeout is None else request_timeout,
+            )
         except urllib.error.HTTPError as exc:
             self._mark_connected()
             try:
@@ -945,6 +953,39 @@ class BridgeClient(AnswerClientMixin, SessionStartClientMixin, CliModeClientMixi
             payload["queue"] = True
             if caller_id:
                 payload["caller_id"] = caller_id
+        from .startup_observation import StartupObservationError, current
+        observation = current()
+        if observation is not None:
+            # Readiness was already established by the observed resume. A race
+            # back to STOPPED must not silently start a second startup attempt.
+            payload["no_resume"] = True
+            observation.local_phase("prompt-admission")
+            failure = None
+            try:
+                result = self._request(
+                    "POST", f"/api/v1/sessions/{session_id}/turns", payload,
+                    request_timeout=observation.clock.policy.communication,
+                    allow_retry=False,
+                )
+            except (BridgeConnectionError, OSError, http.client.HTTPException,
+                    UnicodeError, json.JSONDecodeError) as exc:
+                failure = exc
+            else:
+                if (
+                    isinstance(result, dict)
+                    and isinstance(result.get("status"), str)
+                    and type(result.get("turn_index")) is int
+                    and result["turn_index"] >= 0
+                ):
+                    return result
+            expired_clock = "communication" if isinstance(failure, TimeoutError) else None
+            observation.report(
+                "observation_lost", boundary="prompt-admission", clock=expired_clock,
+            )
+            raise StartupObservationError(
+                expired_clock, "prompt-admission", observation.clock.elapsed,
+                reason="admission_unknown",
+            ) from failure
         return self._request(
             "POST",
             f"/api/v1/sessions/{session_id}/turns",
@@ -1007,6 +1048,17 @@ class BridgeClient(AnswerClientMixin, SessionStartClientMixin, CliModeClientMixi
         request_timeout: float | None = None,
     ) -> dict[str, Any]:
         """POST /api/v1/sessions/{id}/resume"""
+        from .startup_observation import current
+        observation = current()
+        if observation is not None and not observation.clock.ready:
+            return observation.request(
+                self, session_id,
+                lambda: self._request(
+                    "POST", f"/api/v1/sessions/{session_id}/resume",
+                    request_timeout=observation.clock.process_remaining(),
+                    allow_retry=False,
+                ) or {},
+            )
         return self._request(
             "POST",
             f"/api/v1/sessions/{session_id}/resume",
@@ -1219,6 +1271,7 @@ class BridgeClient(AnswerClientMixin, SessionStartClientMixin, CliModeClientMixi
         controlled: bool = False,
         continuity_id: str | None = None,
         transient: bool = False,
+        request_timeout: float | None = None,
     ) -> SseStream:
         """GET /api/v1/sessions/{id}/events (SSE stream).
 
@@ -1240,6 +1293,7 @@ class BridgeClient(AnswerClientMixin, SessionStartClientMixin, CliModeClientMixi
         return self._stream_sse(
             f"/api/v1/sessions/{session_id}/events",
             params=params or None,
+            **({"request_timeout": request_timeout} if request_timeout is not None else {}),
         )
 
     def get_cursor(
