@@ -295,11 +295,69 @@ instead of pretending the execution space is clear; settle that native record
 first, then separately apply the existing queue recovery when required.
 Deleting control files or rotating roots is not recovery.
 
+On Windows, the packaged `update_driver/foundation.ps1` provides the same
+progress protocol without Python. Load the canonical native operation lock
+first. `Start-NativeFoundationProgress -Custody <held-object> -Root <execution-root>
+-Plugin <absolute-update-driver-source>` hashes the fixed three-sibling
+non-generated inventory and publishes running progress under that exact lock.
+`Get-NativeFoundationProgress -Root <execution-root>` is read-only; it returns
+the validated JSON record or no record. It rejects duplicate/unknown fields,
+nonprimitive or invalid types, inconsistent outcomes, linked paths, invalid
+UTF-8, trailing content and records over 32 KiB. Native boot evidence comes
+directly from the same Windows kernel query as the Python implementation.
+
+`Complete-NativeFoundationProgress` takes the same custody, root and plugin,
+the exact admitted JSON as `-Operation`, an optional `-ExitCode` and a bounded
+`-Reason`. Zero requires unchanged source bytes; a nonzero code requires a
+reason; an absent exit status requires an uncertainty reason and leaves the
+interrupted fence. Only a trusted producer that has settled its entire owned
+child tree may certify an integer outcome. Persistence uses a flushed,
+write-through temporary and bounded atomic replacement; it never edits the
+queue or deletes foundation artifacts.
+
+This native entry is deliberately **cold-only**: any existing SQLite queue or
+WAL/SHM/journal sidecar requires the established queue-aware Python authority.
+It does not interpret SQLite, assume a free lock settles an old request, or
+rotate the execution root to evade queued/uncertain work. The Python
+`foundation_state.begin` remains the upgrade/enclosing-transaction path.
+Native inventory hashing binds bytes, not TOML semantics; the fixed builder
+still validates package names, dependencies and local references before staging.
+No acquisition or mutable construction is performed by these progress helpers.
+
 This is the producer/core contract and its qualification, not an enabled cold
-bootstrap. No ordinary entry point writes these records yet; native cold
-construction admission and first-use adapters remain separate work.
+bootstrap. No ordinary entry point writes these records yet; prerequisite
+acquisition, caller-independent producer orchestration and first-use adapters
+remain separate work.
 
 ### Fixed foundation construction participant
+
+On Windows, `update_driver/participant.ps1` supplies the native owner side of
+the existing version-1 participant protocol without Python. After loading the
+canonical `single_instance_lease/operation.ps1`, call
+`New-NativeParticipantWitness -Custody <held-object> -Root <execution-root>
+-RequestId <operation-id>`. It requires that actual native object to hold the
+root's `execution.lock`; a PID, boolean, environment flag or other lock path
+is not custody. Owner-thread issuance creates a retained read-only assertion;
+each authenticated exchange rechecks the original handle, path and identity.
+Release or owner death invalidates joined and future participants.
+
+`Environment()` returns the ephemeral `UPDATE_DRIVER_WITNESS` value for only
+the fixed trusted construction child. Do not persist or log it, or expose it
+to prerequisite downloads or arbitrary subprocesses. The unchanged Python
+participant consumes the inherited capability before package children.
+Close the witness with `Dispose()` before releasing the operation lock, in
+`finally`. Same-user named-pipe ACLs, bounded pickle-free JSON/HMAC exchanges,
+and independent joined clients preserve the Python protocol. Invalid clients
+lose their connection, not the genuine owner's custody; listener failure is
+reported by export/close rather than granting alternate authority. This is
+cooperative same-user custody, not a sandbox against process-memory access.
+The bridge does not launch construction, publish progress, acquire prerequisites
+or enable a cold producer.
+
+At most 16 clients may be joined concurrently. Excess connections are refused
+without revoking already joined participants; capacity returns after disconnect
+observation. Stalled handshakes expire independently. Async I/O retains its
+task-owned wait handle through completion/cancellation even after a deadline.
 
 `scripts/foundation-build.py` constructs only this library plus the canonical
 `agent-procutil` and `single-instance-lease` sibling packages. The fixed
@@ -333,6 +391,15 @@ venv and are not removed by this participant.
 This is the bounded construction participant, not yet a Python-free native
 producer or first-use integration. It does not acquire a bootstrap interpreter,
 write admission/completion records or modify a plugin publisher.
+
+`tests/test_native_participant.py` exercises the real stock-PowerShell owner
+against unchanged Python participants: simultaneous joins, consumed environment,
+kernel-lock contention, forged/mismatched and malformed/oversized messages,
+owner release/death, same-path replacement, closed witnesses and absent custody.
+`libs/single-instance-lease/tests/test_native_operation.py` independently proves
+that an IPC thread may only invoke the issued read-only assertion, not assert
+or release ownership. These are native interoperability controls, not a cold
+foundation installation or non-Windows native bootstrap claim.
 
 Worker queue-startup acknowledgement is not an execution/completion claim.
 A worker failing before queue startup records a visible pending launch error;
