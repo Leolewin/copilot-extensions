@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 from pathlib import Path
@@ -25,6 +26,8 @@ def _windows_move(source, destination, *, replace: bool) -> None:
 def _windows_directory(path: Path) -> None:
     if path.is_dir():
         return
+    if path.parent == path:
+        raise FileNotFoundError(errno.ENOENT, "Draft directory root is unavailable", str(path))
     _windows_directory(path.parent)
     temporary = Path(tempfile.mkdtemp(dir=path.parent))
     try:

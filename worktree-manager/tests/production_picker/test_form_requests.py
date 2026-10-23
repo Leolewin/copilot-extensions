@@ -470,6 +470,49 @@ def test_corrupt_observation_does_not_hide_original_or_other_observations(tmp_pa
     assert json.loads(path.read_text(encoding="utf-8")) == record
 
 
+def test_recovered_retry_reestablishes_durability_and_still_allows_receipt_reads(
+    tmp_path, monkeypatch,
+):
+    import os
+    from types import SimpleNamespace
+    from worktree_manager import form_draft_storage as storage
+    from worktree_manager.production_picker.picker_tui import tasks
+    reg, record = registered(), original()
+    directory = tmp_path / "new-parent" / "new-child"
+    calls = []
+
+    def denied(_path):
+        raise OSError("directory publication failed")
+
+    monkeypatch.setattr(storage, "os", SimpleNamespace(
+        name="posix", fsync=os.fsync, replace=os.replace, unlink=os.unlink,
+    ))
+    monkeypatch.setattr(storage, "_sync_directory", denied)
+    with pytest.raises(OSError, match="directory publication failed"):
+        retain_request(directory, record)
+    path, restored, diagnostic = recovery_records(directory)[0]
+    assert restored == record and not diagnostic
+    monkeypatch.setattr(requests, "current_request_registrations", lambda: [reg])
+
+    def run(_runtime, argv, **_kwargs):
+        calls.append(argv)
+        return True, "original owner receipt"
+
+    monkeypatch.setattr(tasks.RegisteredPivotRuntime, "run_resolved", run)
+    for _ in range(2):
+        with pytest.raises(OSError, match="directory publication failed"):
+            requests.run_retained_request(path, restored)
+        assert calls == []
+        assert json.loads(path.read_text(encoding="utf-8")) == record
+    # A read is still allowed even if its separate local observation cannot flush.
+    ok, output = requests.run_retained_request(path, restored, receipt=True)
+    assert not ok and "original owner receipt" in output and len(calls) == 1
+    assert calls[0][1] == "receipt"
+    monkeypatch.setattr(storage, "_sync_directory", lambda _path: None)
+    assert requests.run_retained_request(path, restored) == (True, "original owner receipt")
+    assert len(calls) == 2 and calls[-1][1] == "submit"
+
+
 @pytest.mark.parametrize("failure", [False, True])
 def test_inspection_keeps_ui_responsive_while_observation_read_is_held(tmp_path, monkeypatch, failure):
     import threading

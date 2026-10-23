@@ -1077,6 +1077,8 @@ the Manager does not need a provider-specific home or "New" path.
 Forms may declare read-only request preparation and exact receipt commands.
 Manager retains the complete original request before sending it, including
 file and directory publication barriers; a failed barrier prevents Submit.
+Identical retries re-establish those barriers before invoking Submit; receipt
+reads remain available when storage is unavailable.
 New parent directories are published write-through on Windows; POSIX writes
 sync the containing directory and ancestors. Inspection loads observations
 off the UI thread and reports unreadable observations without hiding the

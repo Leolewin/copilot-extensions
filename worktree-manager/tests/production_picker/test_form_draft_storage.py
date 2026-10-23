@@ -121,6 +121,13 @@ def test_windows_directory_does_not_swallow_a_failed_barrier_after_move(tmp_path
     assert path.is_dir()
 
 
+def test_windows_unavailable_root_raises_a_filesystem_error_without_recursing(tmp_path, monkeypatch):
+    root = Path(tmp_path.anchor)
+    monkeypatch.setattr(Path, "is_dir", lambda _path: False)
+    with pytest.raises(FileNotFoundError, match="root is unavailable"):
+        storage._windows_directory(root / "drafts")
+
+
 @pytest.mark.parametrize("replace", [False, True])
 @pytest.mark.parametrize("success", [False, True])
 def test_windows_api_requires_write_through_and_propagates_native_error(

@@ -13,6 +13,7 @@ from worktree_manager.form_requests import (
     observe_request, prepared_record, recovery_records, recovery_text,
     request_contract, resolve_request, retain_request,
 )
+from worktree_manager.form_draft_storage import write_record
 from .engine_dialogs import TaskMenuScreen
 
 
@@ -50,6 +51,8 @@ def run_retained_request(path, record, *, receipt=False):
     from . import pivots, tasks
 
     reg, action = resolve_request(record, current_request_registrations())
+    if not receipt:
+        write_record(path, record)
     ctx = {**record["context"], "prepared_request": record["prepared_request"]}
     template = action.form["request"]["receipt"] if receipt else action.run
     argv = pivots.format_form_template(template, ctx, record["values"])
