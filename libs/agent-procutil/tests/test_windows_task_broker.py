@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -93,6 +95,7 @@ def test_missing_adoption_never_installs(monkeypatch, missing):
 def test_installer_publish_failure_rolls_back_only_exact_registration(monkeypatch):
     config = registration()
     monkeypatch.setattr(task.Registration, "validate_files", lambda config: None)
+    monkeypatch.setattr(task, "_qualify", Mock())
     operation = Mock()
     monkeypatch.setattr(task, "task_operation", operation)
     monkeypatch.setattr(task, "_publish", Mock(side_effect=OSError("fixture publication failure")))
@@ -108,6 +111,7 @@ def test_installer_update_publish_failure_restores_previous_generation(monkeypat
         entrypoint=r"C:\runtime\broker\next\agent_procutil\windows_broker_entry.py",
     )
     monkeypatch.setattr(task.Registration, "validate_files", lambda config: None)
+    monkeypatch.setattr(task, "_qualify", Mock())
     operation = Mock()
     monkeypatch.setattr(task, "task_operation", operation)
     monkeypatch.setattr(task, "_publish", Mock(side_effect=OSError("fixture failure")))
@@ -124,9 +128,71 @@ def test_installer_refuses_foreign_generation_before_native_operation(monkeypatc
     monkeypatch.setattr(task.Registration, "validate_files", lambda config: None)
     operation = Mock()
     monkeypatch.setattr(task, "task_operation", operation)
+    qualify = Mock()
+    monkeypatch.setattr(task, "_qualify", qualify)
     with pytest.raises(DaemonSpawnError, match="transition"):
         task.reconcile(registration(), previous=registration(installation="foreign/plugin"))
     operation.assert_not_called()
+    qualify.assert_not_called()
+
+
+def test_failed_runtime_health_preserves_registration_and_metadata(monkeypatch):
+    monkeypatch.setattr(task.Registration, "validate_files", lambda config: None)
+    operation, publish = Mock(), Mock()
+    monkeypatch.setattr(task, "task_operation", operation)
+    monkeypatch.setattr(task, "_publish", publish)
+    monkeypatch.setattr(task, "_qualify", Mock(side_effect=RuntimeError("fixture health failure")))
+    with pytest.raises(RuntimeError, match="health failure"):
+        task.reconcile(registration(), previous=registration())
+    operation.assert_not_called()
+    publish.assert_not_called()
+
+
+@pytest.mark.parametrize("returncode,stdout,stderr,ready", [
+    (0, "agent-procutil.windows-launch-broker.runtime-ready.v1\n", "", True),
+    (1, "agent-procutil.windows-launch-broker.runtime-ready.v1\n", "", False),
+    (0, "ready", "", False),
+    (0, "agent-procutil.windows-launch-broker.runtime-ready.v1\n", "private-value", False),
+])
+def test_runtime_health_uses_exact_isolated_action_and_strict_result(
+    monkeypatch, returncode, stdout, stderr, ready,
+):
+    config = registration()
+    runner = Mock(return_value=subprocess.CompletedProcess(
+        ["fixture"], returncode, stdout, stderr,
+    ))
+    monkeypatch.setattr(task, "run_caller_owned", runner)
+    if ready:
+        task._qualify(config)
+    else:
+        with pytest.raises(DaemonSpawnError, match="health qualification") as caught:
+            task._qualify(config)
+        assert "private-value" not in str(caught.value)
+    assert runner.call_args.args == (
+        [config.pythonw, "-I", config.entrypoint, "--check-runtime"],
+    )
+    assert runner.call_args.kwargs == {
+        "timeout": 15, "max_stdout_bytes": 4096, "max_stderr_bytes": 4096,
+    }
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Native isolated pythonw runtime health")
+def test_exact_copied_action_runtime_qualifies_without_scheduler_or_ambient_imports(tmp_path):
+    import zdd
+
+    packages = tmp_path / "immutable" / "site-packages"
+    shutil.copytree(Path(task.__file__).parent, packages / "agent_procutil")
+    shutil.copytree(Path(zdd.__file__).parent, packages / "zdd")
+    config = registration(
+        root=str(tmp_path),
+        pythonw=str(Path(sys.base_prefix) / "pythonw.exe"),
+        entrypoint=str(packages / "agent_procutil" / "windows_broker_entry.py"),
+    )
+    task._qualify(config)
+    assert not config.config_path.exists()
+    shutil.rmtree(packages / "zdd")
+    with pytest.raises(DaemonSpawnError, match="health qualification"):
+        task._qualify(config)
 
 
 def test_malformed_adoption_metadata_never_reaches_scheduler(tmp_path):

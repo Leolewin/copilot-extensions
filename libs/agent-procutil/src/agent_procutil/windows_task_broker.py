@@ -225,6 +225,20 @@ def _publish(config: Registration) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def _qualify(config: Registration) -> None:
+    """Import the exact immutable action runtime before changing registration."""
+    result = run_caller_owned(
+        [config.pythonw, "-I", config.entrypoint, "--check-runtime"],
+        timeout=15, max_stdout_bytes=4096, max_stderr_bytes=4096,
+    )
+    if (
+        result.returncode != 0
+        or result.stdout != "agent-procutil.windows-launch-broker.runtime-ready.v1\n"
+        or result.stderr
+    ):
+        raise _refuse("runtime health qualification failed")
+
+
 def reconcile(config: Registration, *, previous: Registration | None = None) -> None:
     """Installer integration after immutable-slot qualification, under its driver.
 
@@ -239,6 +253,7 @@ def reconcile(config: Registration, *, previous: Registration | None = None) -> 
         or previous.principal != config.principal or previous.root != config.root
     ):
         raise _refuse("installation transition refused")
+    _qualify(config)
     action = "install" if previous is None else "update"
     task_operation(
         action, config, deadline, **({} if previous is None else {"previous": previous.task()}),

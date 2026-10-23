@@ -158,6 +158,7 @@ def inspect(root: Path) -> dict[str, object]:
         shutil.copytree(source / "libs" / library / "src" / package, packages / package)
     imports(packages)
     import agent_procutil as pu
+    from agent_procutil import windows_task_broker as task_adapter
     from agent_procutil.daemon_broker import _outside_job
     from agent_procutil.windows_broker_native import NativeChild, _duplicate
     from agent_procutil.windows_task_broker import (
@@ -204,6 +205,69 @@ def inspect(root: Path) -> dict[str, object]:
             raise RuntimeError("fixture adoption was not configured")
         result["negative_topology"] = negative_topology(root, pu, callers, children, jobs)
         for cycle in range(2):
+            if cycle == 1:
+                previous = config
+                invalid_entry = root / "invalid-runtime" / "agent_procutil" / "windows_broker_entry.py"
+                invalid_entry.parent.mkdir(parents=True)
+                invalid_entry.write_text(
+                    "raise RuntimeError('synthetic runtime health refusal')\n", encoding="utf-8",
+                )
+                invalid = Registration(
+                    config.installation, config.root, config.pythonw, str(invalid_entry),
+                    config.principal,
+                )
+                try:
+                    reconcile(invalid, previous=config)
+                except pu.DaemonSpawnError as error:
+                    if "runtime health qualification failed" not in str(error):
+                        raise
+                else:
+                    raise RuntimeError("fixture unhealthy action was adopted")
+                if (
+                    task_operation("status", config, Deadline(10)).get("configured") is not True
+                    or json.loads(config.config_path.read_text(encoding="utf-8")) != config.frame()
+                ):
+                    raise RuntimeError("fixture unhealthy action changed active adoption")
+                replacement = root / "replacement" / "site-packages"
+                shutil.copytree(packages, replacement)
+                config = Registration(
+                    previous.installation, previous.root, previous.pythonw,
+                    str(replacement / "agent_procutil" / "windows_broker_entry.py"),
+                    previous.principal,
+                )
+                reconcile(config, previous=previous)
+                if task_operation("status", config, Deadline(10)).get("configured") is not True:
+                    raise RuntimeError("fixture replacement registration refused")
+                original_publish = task_adapter._publish
+
+                def fail_publication(_config):
+                    raise OSError("synthetic publication refusal")
+
+                task_adapter._publish = fail_publication
+                try:
+                    try:
+                        reconcile(previous, previous=config)
+                    except OSError as error:
+                        if str(error) != "synthetic publication refusal":
+                            raise
+                    else:
+                        raise RuntimeError("fixture publication failure was not observed")
+                finally:
+                    task_adapter._publish = original_publish
+                if (
+                    task_operation("status", config, Deadline(10)).get("configured") is not True
+                    or json.loads(config.config_path.read_text(encoding="utf-8")) != config.frame()
+                ):
+                    raise RuntimeError("fixture failed-update rollback not confirmed")
+                task_operation("stop", config, Deadline(15))
+                if task_operation("status", config, Deadline(10)).get("accepting") is not False:
+                    raise RuntimeError("fixture stop still accepts work")
+                reconcile(config, previous=config)
+                result["lifecycle"] = {
+                    "first_and_repeat_adoption": True, "update": True,
+                    "unhealthy_action_refused": True, "failed_publication_rollback": True,
+                    "stop_and_readopt": True,
+                }
             offer_path = root / "caller-offer.json"
             offer_path.unlink(missing_ok=True)
             env = fixture_environment(dict(os.environ), control=True)
