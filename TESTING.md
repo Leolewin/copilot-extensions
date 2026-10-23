@@ -59,6 +59,10 @@ packages. The fixture uses the production registration, native pipe protocol
 and native handle transfer twice, closes two nested caller cleanup Jobs after
 adoption, and checks the actual resident's argv, environment, cwd, split logs,
 own-console visibility, continued execution and native retirement.
+It also terminates a separate publishing interpreter without Python cleanup
+after Task replacement and after configuration publication. Each control must
+leave durable intent, refuse ordinary launch admission, and restore the prior
+Task/configuration through explicit installer recovery before continuing.
 `protocol-result.json` reports this result and cleanup independently of the
 earlier capability probe; either failure rejects the job. Ordinary contained
 units never register a task. This lane is still synthetic source qualification,

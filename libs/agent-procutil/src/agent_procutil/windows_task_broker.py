@@ -12,6 +12,7 @@ import ntpath
 import os
 import re
 import secrets
+import stat
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -90,6 +91,10 @@ class Registration:
     def owner(self) -> str:
         return _SCHEMA + ":" + self.key
 
+    @property
+    def pending_path(self) -> Path:
+        return self.config_path.with_name("windows-launch-broker.pending.json")
+
     def task(self) -> dict[str, object]:
         # Scheduler substitutions contain only nonce/PID/birth public metadata.
         args = subprocess.list2cmdline([
@@ -125,40 +130,63 @@ class Registration:
             raise _refuse("installation prerequisite unavailable")
 
 
+def _registration(value: object) -> Registration:
+    if type(value) is not dict or set(value) != {
+        "schema", "version", "installation", "root", "pythonw", "entrypoint", "principal",
+    } or (
+        value["schema"] != _SCHEMA
+        or type(value["version"]) is not int or value["version"] != 1
+    ):
+        raise _refuse("adoption required")
+    return Registration(
+        value["installation"], value["root"], value["pythonw"],
+        value["entrypoint"], value["principal"],
+    )
+
+
+def _metadata(path: Path, limit: int = 16384) -> object:
+    info = path.lstat()
+    if (
+        not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > limit
+        or getattr(info, "st_file_attributes", 0) & 0x400
+    ):
+        raise _refuse("installation metadata refused")
+    with path.open("rb") as stream:
+        opened = os.fstat(stream.fileno())
+        raw = stream.read(limit + 1)
+        after = os.fstat(stream.fileno())
+    fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns")
+    if len(raw) > limit or any(
+        getattr(info, field) != getattr(opened, field)
+        or getattr(opened, field) != getattr(after, field)
+        or getattr(after, field) != getattr(path.lstat(), field)
+        for field in fields
+    ):
+        raise _refuse("installation metadata changed")
+    return json.loads(raw)
+
+
 def load(path: Path, installation: str) -> Registration:
     """Read bounded owned metadata; an ambient pointer is not installation identity."""
     try:
-        if path.is_symlink() or path.stat().st_size > 16384:
-            raise _refuse("adoption required")
-        with path.open("rb") as stream:
-            raw = stream.read(16385)
-        if len(raw) > 16384:
-            raise _refuse("adoption required")
-        value = json.loads(raw)
-        if type(value) is not dict or set(value) != {
-            "schema", "version", "installation", "root", "pythonw", "entrypoint", "principal",
-        } or (
-            value["schema"] != _SCHEMA
-            or type(value["version"]) is not int or value["version"] != 1
-        ):
-            raise _refuse("adoption required")
-        config = Registration(
-            value["installation"], value["root"], value["pythonw"],
-            value["entrypoint"], value["principal"],
-        )
+        config = _registration(_metadata(path))
         if config.installation != installation or path.absolute() != config.config_path:
             raise _refuse("installation identity refused")
         config.validate_files()
-        return config
     except (OSError, ValueError, TypeError, KeyError):
         raise _refuse("adoption required") from None
+    if os.path.lexists(config.pending_path):
+        raise _refuse("installer recovery required")
+    return config
 
 
 def task_operation(
     action: str, config: Registration, deadline: Deadline, **metadata: object,
 ) -> dict[str, object]:
     """Bound the native scheduler adapter; stdin contains no launch secrets."""
-    if action not in {"install", "update", "activate", "status", "stop", "uninstall"}:
+    if action not in {
+        "install", "update", "activate", "status", "stop", "uninstall", "inspect", "recover",
+    }:
         raise _refuse("task operation refused")
     if os.name != "nt":
         raise _refuse("Windows prerequisite unavailable")
@@ -211,18 +239,99 @@ def task_operation(
     return value
 
 
-def _publish(config: Registration) -> None:
+def _write_metadata(path: Path, value: object) -> None:
     # The installer already owns the private root and its execution transaction.
-    path = config.config_path
     temporary = path.with_name(path.name + "." + secrets.token_hex(16) + ".tmp")
     try:
         with temporary.open("x", encoding="utf-8") as stream:
-            json.dump(config.frame(), stream, ensure_ascii=True)
+            json.dump(value, stream, ensure_ascii=True)
             stream.flush()
             os.fsync(stream.fileno())
         temporary.replace(path)
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def _publish(config: Registration) -> None:
+    _write_metadata(config.config_path, config.frame())
+
+
+def _same_installation(first: Registration, second: Registration) -> bool:
+    return (
+        first.installation == second.installation and first.principal == second.principal
+        and first.root == second.root
+    )
+
+
+def _published(config: Registration) -> Registration | None:
+    try:
+        value = _registration(_metadata(config.config_path))
+    except FileNotFoundError:
+        return None
+    if not _same_installation(config, value):
+        raise _refuse("installation transition refused")
+    return value
+
+
+def recover(config: Registration) -> bool:
+    """Restore an interrupted publication only under the owning installer.
+
+    The canonical execution driver must already own mutation and settle any
+    interrupted execution fence. This is not a queue, lock or launch-time repair.
+    Both generations must remain retained until this record is removed.
+    """
+    config.validate_files()
+    try:
+        record = _metadata(config.pending_path, 65536)
+    except FileNotFoundError:
+        return False
+    if (
+        type(record) is not dict or set(record) != {
+            "schema", "version", "desired", "previous", "published", "accepting",
+        }
+        or record["schema"] != _SCHEMA + ".publication"
+        or type(record["version"]) is not int or record["version"] != 1
+        or type(record["accepting"]) is not bool
+    ):
+        raise _refuse("installer recovery record refused")
+    desired = _registration(record["desired"])
+    previous = None if record["previous"] is None else _registration(record["previous"])
+    published = None if record["published"] is None else _registration(record["published"])
+    for candidate in (desired, previous, published):
+        if candidate is not None:
+            if not _same_installation(config, candidate):
+                raise _refuse("installation transition refused")
+            candidate.validate_files()
+    if (
+        (previous is None and record["accepting"])
+        or (published is not None and published != previous)
+        or _published(config) not in (published, desired)
+    ):
+        raise _refuse("installer recovery state refused")
+    if previous is not None:
+        _qualify(previous)
+    response = task_operation(
+        "recover", desired, Deadline(30),
+        previous=None if previous is None else previous.task(),
+        accepting=record["accepting"],
+    )
+    if set(response) != {"recovered"} or response["recovered"] is not True:
+        raise _refuse("installer recovery unconfirmed", cleanup_confirmed=False)
+    if (
+        _metadata(config.pending_path, 65536) != record
+        or _published(config) not in (published, desired)
+    ):
+        raise _refuse("installer recovery state changed", cleanup_confirmed=False)
+    # Recovery can be interrupted too. Keep the original record until both
+    # external effects are restored, so the next explicit installer can repeat.
+    if published is None:
+        config.config_path.unlink(missing_ok=True)
+    elif _published(config) != published:
+        _publish(published)
+    if _metadata(config.pending_path, 65536) != record or _published(config) != published:
+        raise _refuse("installer recovery state changed", cleanup_confirmed=False)
+    config.pending_path.unlink()
+    return True
 
 
 def _qualify(config: Registration) -> None:
@@ -247,26 +356,44 @@ def reconcile(config: Registration, *, previous: Registration | None = None) -> 
     A replacement is not activated while the old finite task accepts work.
     """
     config.validate_files()
-    deadline = Deadline(30)
-    if previous is not None and (
-        previous.installation != config.installation
-        or previous.principal != config.principal or previous.root != config.root
-    ):
+    if previous is not None and not _same_installation(config, previous):
         raise _refuse("installation transition refused")
+    recover(config)
     _qualify(config)
+    published = _published(config)
+    expected = previous if previous is not None else config
+    if published is not None and published != expected:
+        raise _refuse("installation transition refused")
+    observed = task_operation("inspect", expected, Deadline(30))
+    if (
+        type(observed.get("installed")) is not bool
+        or type(observed.get("accepting")) is not bool
+        or (not observed["installed"] and observed["accepting"])
+        or (published is not None and not observed["installed"])
+    ):
+        raise _refuse("installation inspection refused")
+    original = expected if observed["installed"] else None
+    record = {
+        "schema": _SCHEMA + ".publication", "version": 1,
+        "desired": config.frame(),
+        "previous": None if original is None else original.frame(),
+        "published": None if published is None else published.frame(),
+        "accepting": observed["accepting"],
+    }
+    _write_metadata(config.pending_path, record)
     action = "install" if previous is None else "update"
-    task_operation(
-        action, config, deadline, **({} if previous is None else {"previous": previous.task()}),
-    )
     try:
+        task_operation(
+            action, config, Deadline(30),
+            **({} if previous is None else {"previous": previous.task()}),
+        )
         _publish(config)
+        if _metadata(config.pending_path, 65536) != record or _published(config) != config:
+            raise _refuse("installation publication changed")
     except BaseException:
-        # Roll back only the exact registration this installer just changed.
-        if previous is None:
-            task_operation("uninstall", config, Deadline(15))
-        else:
-            task_operation("update", previous, Deadline(15), previous=config.task())
+        recover(config)
         raise
+    config.pending_path.unlink()
 
 
 def pipe_path(config: Registration, nonce: str) -> str:

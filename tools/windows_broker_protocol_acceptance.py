@@ -73,6 +73,29 @@ def caller(package_root: Path, root: Path) -> int:
     return 0
 
 
+def crash_publication(package_root: Path, root: Path, desired: str, previous: str, phase: str) -> int:
+    admit(root, True)
+    if phase not in {"task", "metadata"}:
+        raise ValueError("fixture publication phase refused")
+    imports(package_root)
+    from agent_procutil import windows_task_broker as adapter
+
+    original = adapter._publish
+
+    def interrupted(config):
+        if phase == "metadata":
+            original(config)
+        # Deliberately bypass Python cleanup; only the owning CI fixture may do so.
+        os._exit(73)
+
+    adapter._publish = interrupted
+    adapter.reconcile(
+        adapter._registration(json.loads(desired)),
+        previous=adapter._registration(json.loads(previous)),
+    )
+    raise RuntimeError("fixture publication interruption was not reached")
+
+
 def make_job(pu, owners):
     api = pu._kernel32()
     pu._configure_job_api(api)
@@ -259,6 +282,39 @@ def inspect(root: Path) -> dict[str, object]:
                     or json.loads(config.config_path.read_text(encoding="utf-8")) != config.frame()
                 ):
                     raise RuntimeError("fixture failed-update rollback not confirmed")
+                recovery_controls = []
+                from agent_procutil.owned_process import run_caller_owned
+
+                for phase in ("task", "metadata"):
+                    interrupted = run_caller_owned(
+                        [
+                            str(Path(sys.base_prefix) / "python.exe"), "-I",
+                            str(Path(__file__).resolve()), "crash-publication",
+                            str(packages), str(root), json.dumps(previous.frame()),
+                            json.dumps(config.frame()), phase,
+                        ],
+                        cwd=root, env=fixture_environment(dict(os.environ), control=True),
+                        timeout=60, max_stdout_bytes=4096, max_stderr_bytes=4096,
+                    )
+                    if interrupted.returncode != 73 or not config.pending_path.is_file():
+                        raise RuntimeError("fixture publication interruption not confirmed")
+                    try:
+                        task_adapter.load(config.config_path, config.installation)
+                    except pu.DaemonSpawnError as error:
+                        if "installer recovery required" not in str(error):
+                            raise
+                    else:
+                        raise RuntimeError("fixture interrupted publication admitted a launch")
+                    if not task_adapter.recover(config):
+                        raise RuntimeError("fixture interrupted publication was not recovered")
+                    if (
+                        config.pending_path.exists()
+                        or task_operation("status", config, Deadline(10)).get("accepting") is not True
+                        or json.loads(config.config_path.read_text(encoding="utf-8")) != config.frame()
+                    ):
+                        raise RuntimeError("fixture crash recovery did not restore original adoption")
+                    recovery_controls.append(phase)
+                result["publication_crash_recovery"] = recovery_controls
                 task_operation("stop", config, Deadline(15))
                 if task_operation("status", config, Deadline(10)).get("accepting") is not False:
                     raise RuntimeError("fixture stop still accepts work")
@@ -374,6 +430,7 @@ def inspect(root: Path) -> dict[str, object]:
                     stream.close()
         if adopted:
             try:
+                task_adapter.recover(config)
                 task_operation("uninstall", config, Deadline(15))
             except (OSError, RuntimeError, subprocess.SubprocessError):
                 cleanup = False
@@ -388,6 +445,8 @@ def main() -> int:
     args = sys.argv[1:]
     if len(args) == 3 and args[0] == "caller":
         return caller(Path(args[1]), Path(args[2]))
+    if len(args) == 6 and args[0] == "crash-publication":
+        return crash_publication(Path(args[1]), Path(args[2]), args[3], args[4], args[5])
     if len(args) != 2 or args[0] != "--ephemeral-ci-consent":
         raise RuntimeError("protocol fixture requires explicit ephemeral Windows CI consent")
     root = Path(args[1])

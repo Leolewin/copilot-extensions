@@ -32,6 +32,16 @@ def registration(**overrides):
     })
 
 
+def fixture_registration(tmp_path, **overrides):
+    if os.name != "nt":
+        pytest.skip("Windows installation metadata paths")
+    return registration(**{
+        "root": str(tmp_path),
+        "entrypoint": str(tmp_path / "immutable" / "windows_broker_entry.py"),
+        **overrides,
+    })
+
+
 def test_registration_names_are_installation_and_user_scoped():
     config = registration()
     other_installation = registration(installation="other/plugin")
@@ -92,36 +102,203 @@ def test_missing_adoption_never_installs(monkeypatch, missing):
     operation.assert_not_called()
 
 
-def test_installer_publish_failure_rolls_back_only_exact_registration(monkeypatch):
-    config = registration()
+def test_installer_publish_failure_rolls_back_only_exact_registration(monkeypatch, tmp_path):
+    config = fixture_registration(tmp_path)
     monkeypatch.setattr(task.Registration, "validate_files", lambda config: None)
     monkeypatch.setattr(task, "_qualify", Mock())
-    operation = Mock()
+    operation = Mock(side_effect=[
+        {"installed": False, "accepting": False}, {}, {"recovered": True},
+    ])
     monkeypatch.setattr(task, "task_operation", operation)
     monkeypatch.setattr(task, "_publish", Mock(side_effect=OSError("fixture publication failure")))
     with pytest.raises(OSError, match="publication"):
         task.reconcile(config)
-    assert [call.args[0] for call in operation.call_args_list] == ["install", "uninstall"]
-    assert all(call.args[1] is config for call in operation.call_args_list)
+    assert [call.args[0] for call in operation.call_args_list] == ["inspect", "install", "recover"]
+    assert all(call.args[1] == config for call in operation.call_args_list)
+    assert not config.pending_path.exists()
 
 
-def test_installer_update_publish_failure_restores_previous_generation(monkeypatch):
-    old = registration()
-    new = registration(
-        entrypoint=r"C:\runtime\broker\next\agent_procutil\windows_broker_entry.py",
+def test_installer_update_publish_failure_restores_previous_generation(monkeypatch, tmp_path):
+    old = fixture_registration(tmp_path)
+    new = fixture_registration(
+        tmp_path, entrypoint=str(tmp_path / "next" / "windows_broker_entry.py"),
     )
     monkeypatch.setattr(task.Registration, "validate_files", lambda config: None)
     monkeypatch.setattr(task, "_qualify", Mock())
-    operation = Mock()
+    task._publish(old)
+    operation = Mock(side_effect=[
+        {"installed": True, "accepting": True}, {}, {"recovered": True},
+    ])
     monkeypatch.setattr(task, "task_operation", operation)
     monkeypatch.setattr(task, "_publish", Mock(side_effect=OSError("fixture failure")))
     with pytest.raises(OSError, match="fixture"):
         task.reconcile(new, previous=old)
-    first, rollback = operation.call_args_list
+    inspect, first, rollback = operation.call_args_list
+    assert inspect.args[:2] == ("inspect", old)
     assert first.args[:2] == ("update", new)
     assert first.kwargs == {"previous": old.task()}
-    assert rollback.args[:2] == ("update", old)
-    assert rollback.kwargs == {"previous": new.task()}
+    assert rollback.args[:2] == ("recover", new)
+    assert rollback.kwargs == {"previous": old.task(), "accepting": True}
+    assert not new.pending_path.exists()
+
+
+def pending_record(desired, previous, *, published=None, accepting=False):
+    task._write_metadata(desired.pending_path, {
+        "schema": task._SCHEMA + ".publication", "version": 1,
+        "desired": desired.frame(),
+        "previous": None if previous is None else previous.frame(),
+        "published": None if published is None else published.frame(),
+        "accepting": accepting,
+    })
+
+
+@pytest.mark.parametrize("metadata_committed", [False, True])
+@pytest.mark.parametrize("accepting", [False, True])
+def test_interrupted_update_restores_original_task_and_metadata(
+    monkeypatch, tmp_path, metadata_committed, accepting,
+):
+    old = fixture_registration(tmp_path)
+    new = fixture_registration(
+        tmp_path, entrypoint=str(tmp_path / "next" / "windows_broker_entry.py"),
+    )
+    monkeypatch.setattr(task.Registration, "validate_files", lambda config: None)
+    monkeypatch.setattr(task, "_qualify", Mock())
+    task._publish(new if metadata_committed else old)
+    pending_record(new, old, published=old, accepting=accepting)
+    operation = Mock(return_value={"recovered": True})
+    monkeypatch.setattr(task, "task_operation", operation)
+    assert task.recover(new)
+    assert task._published(new) == old
+    assert not new.pending_path.exists()
+    assert operation.call_args.args[:2] == ("recover", new)
+    assert operation.call_args.kwargs == {"previous": old.task(), "accepting": accepting}
+    assert not task.recover(new)
+    assert operation.call_count == 1
+
+
+@pytest.mark.parametrize("metadata_committed", [False, True])
+def test_interrupted_first_adoption_restores_absence(monkeypatch, tmp_path, metadata_committed):
+    config = fixture_registration(tmp_path)
+    monkeypatch.setattr(task.Registration, "validate_files", lambda config: None)
+    if metadata_committed:
+        task._publish(config)
+    pending_record(config, None)
+    operation = Mock(return_value={"recovered": True})
+    monkeypatch.setattr(task, "task_operation", operation)
+    assert task.recover(config)
+    assert not config.config_path.exists()
+    assert not config.pending_path.exists()
+    assert operation.call_args.kwargs == {"previous": None, "accepting": False}
+
+
+def test_repeat_adoption_rollback_does_not_remove_preexisting_task(monkeypatch, tmp_path):
+    config = fixture_registration(tmp_path)
+    monkeypatch.setattr(task.Registration, "validate_files", lambda config: None)
+    monkeypatch.setattr(task, "_qualify", Mock())
+    task._publish(config)
+    operation = Mock(side_effect=[
+        {"installed": True, "accepting": True}, {}, {"recovered": True},
+    ])
+    monkeypatch.setattr(task, "task_operation", operation)
+    monkeypatch.setattr(task, "_publish", Mock(side_effect=OSError("fixture publication failure")))
+    with pytest.raises(OSError, match="fixture"):
+        task.reconcile(config)
+    assert operation.call_args.kwargs == {"previous": config.task(), "accepting": True}
+    assert task._published(config) == config
+    assert not config.pending_path.exists()
+
+
+def test_interrupted_recovery_retains_original_intent_and_can_repeat(monkeypatch, tmp_path):
+    old = fixture_registration(tmp_path)
+    new = fixture_registration(
+        tmp_path, entrypoint=str(tmp_path / "next" / "windows_broker_entry.py"),
+    )
+    monkeypatch.setattr(task.Registration, "validate_files", lambda config: None)
+    monkeypatch.setattr(task, "_qualify", Mock())
+    task._publish(new)
+    pending_record(new, old, published=old, accepting=True)
+    retained = new.pending_path.read_bytes()
+    operation = Mock(return_value={"recovered": True})
+    monkeypatch.setattr(task, "task_operation", operation)
+    publish = task._publish
+    monkeypatch.setattr(task, "_publish", Mock(side_effect=OSError("fixture recovery failure")))
+    with pytest.raises(OSError, match="recovery failure"):
+        task.recover(new)
+    assert new.pending_path.read_bytes() == retained
+    assert task._published(new) == new
+    monkeypatch.setattr(task, "_publish", publish)
+    assert task.recover(new)
+    assert task._published(new) == old
+    assert operation.call_count == 2
+
+
+@pytest.mark.parametrize("response", [
+    {}, {"recovered": False}, {"recovered": 1}, {"recovered": True, "extra": 1},
+])
+def test_unconfirmed_native_recovery_preserves_metadata_and_intent(
+    monkeypatch, tmp_path, response,
+):
+    config = fixture_registration(tmp_path)
+    monkeypatch.setattr(task.Registration, "validate_files", lambda config: None)
+    task._publish(config)
+    pending_record(config, None)
+    monkeypatch.setattr(task, "task_operation", Mock(return_value=response))
+    with pytest.raises(DaemonSpawnError, match="recovery unconfirmed") as caught:
+        task.recover(config)
+    assert not caught.value.cleanup_confirmed
+    assert config.pending_path.exists()
+    assert config.config_path.exists()
+
+
+@pytest.mark.parametrize("failure", ["foreign-record", "foreign-publication", "invalid-record"])
+def test_unowned_recovery_state_is_refused_before_native_mutation(monkeypatch, tmp_path, failure):
+    config = fixture_registration(tmp_path)
+    monkeypatch.setattr(task.Registration, "validate_files", lambda config: None)
+    foreign = fixture_registration(tmp_path, installation="foreign/plugin")
+    pending_record(foreign if failure == "foreign-record" else config, None)
+    if failure == "foreign-publication":
+        task._publish(foreign)
+    elif failure == "invalid-record":
+        config.pending_path.write_text("{}", encoding="utf-8")
+    operation = Mock()
+    monkeypatch.setattr(task, "task_operation", operation)
+    with pytest.raises(DaemonSpawnError):
+        task.recover(config)
+    operation.assert_not_called()
+    assert config.pending_path.exists()
+
+
+def test_pending_publication_blocks_spawn_without_native_mutation(monkeypatch, tmp_path):
+    config = fixture_registration(tmp_path)
+    monkeypatch.setattr(task.Registration, "validate_files", lambda config: None)
+    task._publish(config)
+    pending_record(config, None)
+    operation = Mock()
+    monkeypatch.setattr(task, "task_operation", operation)
+    with pytest.raises(DaemonSpawnError, match="recovery required"):
+        task.load(config.config_path, config.installation)
+    operation.assert_not_called()
+
+
+@pytest.mark.parametrize("changed", ["record", "publication"])
+def test_recovery_revalidates_state_after_native_effects(monkeypatch, tmp_path, changed):
+    config = fixture_registration(tmp_path)
+    monkeypatch.setattr(task.Registration, "validate_files", lambda config: None)
+    task._publish(config)
+    pending_record(config, None)
+
+    def native_effect(*args, **kwargs):
+        if changed == "record":
+            config.pending_path.write_text("{}", encoding="utf-8")
+        else:
+            task._publish(fixture_registration(tmp_path, installation="foreign/plugin"))
+        return {"recovered": True}
+
+    monkeypatch.setattr(task, "task_operation", native_effect)
+    with pytest.raises(DaemonSpawnError):
+        task.recover(config)
+    assert config.pending_path.exists()
+    assert config.config_path.exists()
 
 
 def test_installer_refuses_foreign_generation_before_native_operation(monkeypatch):

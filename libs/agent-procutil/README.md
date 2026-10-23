@@ -356,6 +356,21 @@ launches never install or repair it. Update drains finite accepted transactions
 without stopping them; stop/uninstall disable admission and report that already
 transferred child control remains the consumer's responsibility.
 
+`reconcile` records credential-free publication intent before changing the Task
+or adopted configuration. While that record exists, ordinary launches refuse
+with `installer recovery required`; they never repair it. The next explicitly
+owned installer can call `recover` (also called at the start of `reconcile`)
+to restore the original action, enabled state and configuration. Recovery
+accepts only the recorded old/new action and configuration, refuses foreign
+state and keeps its record if restoration cannot be confirmed. Repeated
+adoption failure preserves a pre-existing Task rather than uninstalling it.
+The canonical execution driver must own mutation and settle its interrupted
+execution fences first. This record introduces no second mutation lock or
+automatic request replay. Both immutable generations must remain retained
+until publication or recovery removes the record. These are process-crash
+recovery semantics, not a claim of power-loss atomicity across Task Scheduler
+and filesystem storage.
+
 Each activation supplies only a fresh pipe rendezvous and public caller
 PID/birth metadata through Task Scheduler. The client pins the actual scheduler
 instance, checks its executable and authenticates that process as the native

@@ -30,6 +30,14 @@ def test_protocol_caller_refuses_shared_host_before_loading_runtime(monkeypatch,
     protocol_probe.imports.assert_not_called()
 
 
+def test_publication_crash_fixture_refuses_shared_host_before_loading_runtime(monkeypatch, tmp_path):
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.setattr(protocol_probe, "imports", Mock())
+    with pytest.raises(RuntimeError, match="ephemeral Windows CI consent"):
+        protocol_probe.crash_publication(tmp_path, tmp_path, "{}", "{}", "task")
+    protocol_probe.imports.assert_not_called()
+
+
 def test_protocol_direct_inspection_cannot_bypass_shared_host_refusal(monkeypatch, tmp_path):
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
     copy = Mock(side_effect=AssertionError("fixture escaped admission"))

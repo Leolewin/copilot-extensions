@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('install', 'update', 'activate', 'status', 'stop', 'uninstall')]
+    [ValidateSet('install', 'update', 'activate', 'status', 'stop', 'uninstall', 'inspect', 'recover')]
     [string]$Action
 )
 $ErrorActionPreference = 'Stop'
@@ -81,6 +81,29 @@ function Wait-Drained($Task) {
     }
 }
 
+function Register-OwnedTask($Service, $Folder, $Config, [int]$Flags) {
+    $definition = $Service.NewTask(0)
+    $definition.RegistrationInfo.Description = $Config.owner
+    $definition.Principal.UserId = $Config.principal
+    $definition.Principal.LogonType = 2
+    $definition.Principal.RunLevel = 0
+    $definition.Settings.Enabled = $true
+    $definition.Settings.AllowDemandStart = $true
+    $definition.Settings.Hidden = $true
+    $definition.Settings.MultipleInstances = 0
+    $definition.Settings.DisallowStartIfOnBatteries = $false
+    $definition.Settings.StopIfGoingOnBatteries = $false
+    $definition.Settings.ExecutionTimeLimit = 'PT1M'
+    $exec = $definition.Actions.Create(0)
+    $exec.Path = $Config.pythonw
+    $exec.Arguments = $Config.arguments
+    $exec.WorkingDirectory = $Config.cwd
+    $registered = $Folder.RegisterTaskDefinition(
+        $Config.task_name, $definition, $Flags, $Config.principal, $null, 2, $null
+    )
+    return $registered
+}
+
 $rollbackXml = $null
 $newRegistration = $false
 try {
@@ -99,6 +122,44 @@ try {
     $folder = $service.GetFolder('\')
     Write-ActivationPhase 'lookup'
     $task = Find-OwnedTask $folder $c
+    if ($Action -eq 'recover') {
+        $prior = $inputValue.previous
+        if ($null -ne $prior -and (
+            $prior.owner -cne $c.owner -or $prior.task_name -cne $c.task_name -or
+            $prior.principal -cne $c.principal -or $prior.cwd -cne $c.cwd
+        )) { throw 'broker-registration-owner-refused' }
+        if ($null -ne $task) {
+            try { Assert-Action $task $c }
+            catch {
+                if ($null -eq $prior) { throw }
+                Assert-Action $task $prior
+            }
+            $wasEnabled = $task.Enabled
+            $originalXml = $task.Xml
+            $task.Enabled = $false
+            try { Wait-Drained $task }
+            catch {
+                $task.Enabled = $wasEnabled
+                throw
+            }
+            $rollbackXml = $originalXml
+        }
+        if ($null -eq $prior) {
+            if ($null -ne $task) { $folder.DeleteTask($c.task_name, 0) }
+        } else {
+            $flags = if ($null -eq $task) { 2 } else { 4 }
+            $task = Register-OwnedTask $service $folder $prior $flags
+            $newRegistration = $flags -eq 2
+            Assert-Action $task $prior
+            $task.Enabled = [bool]$inputValue.accepting
+        }
+        [ordered]@{ recovered = $true } | ConvertTo-Json -Compress
+        exit 0
+    }
+    if ($Action -eq 'inspect' -and $null -eq $task) {
+        [ordered]@{ installed = $false; accepting = $false } | ConvertTo-Json -Compress
+        exit 0
+    }
     if ($Action -eq 'install' -or $Action -eq 'update') {
         if ($null -ne $task) {
             if ($Action -eq 'install') {
@@ -120,26 +181,8 @@ try {
             }
         }
         if ($null -eq $task -or $Action -eq 'update') {
-            $definition = $service.NewTask(0)
-            $definition.RegistrationInfo.Description = $c.owner
-            $definition.Principal.UserId = $c.principal
-            $definition.Principal.LogonType = 2
-            $definition.Principal.RunLevel = 0
-            $definition.Settings.Enabled = $true
-            $definition.Settings.AllowDemandStart = $true
-            $definition.Settings.Hidden = $true
-            $definition.Settings.MultipleInstances = 0
-            $definition.Settings.DisallowStartIfOnBatteries = $false
-            $definition.Settings.StopIfGoingOnBatteries = $false
-            $definition.Settings.ExecutionTimeLimit = 'PT1M'
-            $exec = $definition.Actions.Create(0)
-            $exec.Path = $c.pythonw
-            $exec.Arguments = $c.arguments
-            $exec.WorkingDirectory = $c.cwd
             $flags = if ($null -eq $task) { 2 } else { 4 }
-            $task = $folder.RegisterTaskDefinition(
-                $c.task_name, $definition, $flags, $c.principal, $null, 2, $null
-            )
+            $task = Register-OwnedTask $service $folder $c $flags
             $newRegistration = $flags -eq 2
             Assert-Action $task $c
         }
