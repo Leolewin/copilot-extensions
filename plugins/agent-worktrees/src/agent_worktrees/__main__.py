@@ -2228,9 +2228,7 @@ def _build_launch_cmd(
         prefix.append("--recovery")
     prefix.append("--")
     cmd = apply_process_launcher(cmd, args, LaunchPreflightError)
-    if not is_acp:
-        cmd = quote_powershell_command(cmd, LaunchPreflightError)
-    return prefix + cmd
+    return prefix + (cmd if is_acp else quote_powershell_command(cmd, LaunchPreflightError))
 
 
 def _emit_parent_context_hint(record, *, to_stderr: bool = False) -> None:
