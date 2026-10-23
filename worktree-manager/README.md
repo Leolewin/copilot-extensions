@@ -1075,7 +1075,12 @@ The contract also lets one available contribution designate the initial home
 pivot and lets providers declare view-scoped actions alongside row actions, so
 the Manager does not need a provider-specific home or "New" path.
 Forms may declare read-only request preparation and exact receipt commands.
-Manager retains the complete original request before sending it. **Retained
+Manager retains the complete original request before sending it, including
+file and directory publication barriers; a failed barrier prevents Submit.
+New parent directories are published write-through on Windows; POSIX writes
+sync the containing directory and ancestors. Inspection loads observations
+off the UI thread and reports unreadable observations without hiding the
+original request. **Retained
 responses** (`Ctrl+Shift+R` from any top-level view) remains reachable after
 restart, card/row removal or provider removal. It supports read-only inspection,
 explicit owner receipt checks and a separately confirmed identical retry;

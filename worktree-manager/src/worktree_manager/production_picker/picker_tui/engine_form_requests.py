@@ -185,9 +185,17 @@ class PivotFormRequestActionsMixin:
                     "Retained form response", context=str(path), return_label="Return to Manager",
                 )
                 self.app.push_screen(screen)
-                self.call_after_refresh(
-                    lambda: screen.complete(True, recovery_text(path, record, diagnostic)),
-                )
+
+                def work():
+                    try:
+                        return True, recovery_text(path, record, diagnostic)
+                    except Exception as exc:
+                        return False, f"{type(exc).__name__}: {exc}\nOriginal request retained at: {path}"
+
+                self.call_after_refresh(lambda: self._run_bg(
+                    "Reading original request", work,
+                    lambda result: screen.complete(*result), quiet=True,
+                ))
             elif index == 1:
                 self._run_form_recovery(path, record, receipt=True)
             elif index == 2:

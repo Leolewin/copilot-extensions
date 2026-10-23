@@ -182,6 +182,6 @@ def recovery_text(path: Path, record: dict, diagnostic: str = "") -> str:
     for evidence in sorted(path.parent.glob(f"{path.stem}.evidence-*.json")):
         try:
             text += "\n\nCommand observation (not acceptance authority):\n" + evidence.read_text(encoding="utf-8")
-        except OSError as exc:
-            text += f"\n\nCannot read observation: {exc}"
+        except (OSError, UnicodeError) as exc:
+            text += f"\n\nCannot read observation {evidence.name}: {type(exc).__name__}: {exc}"
     return text

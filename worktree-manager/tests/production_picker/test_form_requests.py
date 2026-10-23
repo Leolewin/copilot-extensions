@@ -414,11 +414,31 @@ def test_native_prepare_persists_before_submit_and_global_recovery_cancel_never_
     asyncio.run(run())
 
 
-def test_local_request_write_failure_prevents_any_submit(tmp_path, monkeypatch):
+@pytest.mark.parametrize("failure", ["write", "publication", "directory"])
+def test_local_request_write_failure_prevents_any_submit(tmp_path, monkeypatch, failure):
+    from worktree_manager import form_draft_storage as storage
     from worktree_manager.production_picker.picker_tui.engine_form_requests import PivotFormRequestActionsMixin
     reg = provider(tmp_path)
     monkeypatch.setattr(requests, "current_request_registrations", lambda: [reg])
-    monkeypatch.setattr(requests, "retain_request", lambda *_args: (_ for _ in ()).throw(OSError("disk full")))
+    monkeypatch.setenv("AGENT_WORKTREES_STEER_DRAFTS", str(tmp_path / "new" / "drafts"))
+
+    def denied(*_args, **_kwargs):
+        raise OSError("durability barrier failed")
+
+    if failure == "write":
+        monkeypatch.setattr(storage.os, "fsync", denied)
+    elif storage.os.name == "nt":
+        move = storage._windows_move
+
+        def fail_barrier(source, destination, *, replace):
+            if replace == (failure == "publication"):
+                denied()
+            move(source, destination, replace=replace)
+
+        monkeypatch.setattr(storage, "_windows_move", fail_barrier)
+    else:
+        monkeypatch.setattr(storage.os if failure == "publication" else storage,
+                            "replace" if failure == "publication" else "_sync_directory", denied)
     screens = []
 
     class Picker(PivotFormRequestActionsMixin):
@@ -435,6 +455,66 @@ def test_local_request_write_failure_prevents_any_submit(tmp_path, monkeypatch):
         draft_binding={"card": "original"}, draft_path=tmp_path / "draft.json",
     )
     assert screens and not (tmp_path / "accepted.json").exists()
+
+
+def test_corrupt_observation_does_not_hide_original_or_other_observations(tmp_path):
+    from worktree_manager.form_requests import observe_request
+    record = original()
+    path = retain_request(tmp_path, record)
+    bad = path.with_name(f"{path.stem}.evidence-a.json")
+    bad.write_bytes(b"\xff")
+    observe_request(path, operation="receipt", ok=False, output="owner unavailable")
+    text = recovery_text(path, record)
+    assert bad.name in text and "UnicodeDecodeError" in text
+    assert "owner unavailable" in text and record["prepared_request"]["id"] in text
+    assert json.loads(path.read_text(encoding="utf-8")) == record
+
+
+@pytest.mark.parametrize("failure", [False, True])
+def test_inspection_keeps_ui_responsive_while_observation_read_is_held(tmp_path, monkeypatch, failure):
+    import threading
+    from test_config_actions import _wait
+    from test_picker_tui import _fixture_source, _wait_for_initial_setup
+    from worktree_manager.production_picker.picker_tui.engine import PickerApp, PickerScreen
+    from worktree_manager.production_picker.picker_tui.configuration_form import CommandResultScreen
+    from worktree_manager.production_picker.picker_tui.engine_dialogs import TaskMenuScreen
+
+    entered, release = threading.Event(), threading.Event()
+    ui_thread = threading.get_ident()
+    path = retain_request(tmp_path, original())
+
+    def held_read(*_args):
+        assert threading.get_ident() != ui_thread, "inspection I/O must not run on UI thread"
+        entered.set()
+        assert release.wait(5), "test must release worker while UI remains responsive"
+        if failure:
+            raise OSError("observation directory unreadable")
+        return "complete original observation"
+
+    monkeypatch.setattr(requests, "recovery_text", held_read)
+
+    async def run():
+        app = PickerApp(_fixture_source(), live=False)
+        async with app.run_test() as pilot:
+            picker = app.query_one(PickerScreen)
+            await _wait_for_initial_setup(pilot, picker)
+            picker._show_form_recovery(path, original(), "Provider unavailable; read-only")
+            await _wait(pilot, lambda: isinstance(app.screen, TaskMenuScreen))
+            app.screen.dismiss(0)
+            try:
+                await _wait(pilot, lambda: entered.is_set())
+                assert isinstance(app.screen, CommandResultScreen) and app.screen.pending
+                completed = asyncio.Event()
+                app.call_later(completed.set)
+                await asyncio.wait_for(completed.wait(), 1)
+                assert not release.is_set() and app.screen.pending
+            finally:
+                release.set()
+            await _wait(pilot, lambda: not app.screen.pending)
+            text = str(app.screen.query_one("#command-result", Static).content)
+            assert ("observation directory unreadable" if failure else "complete original observation") in text
+            assert path.exists()
+    asyncio.run(run())
 
 
 @pytest.mark.parametrize("failure", [False, True])
