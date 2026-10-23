@@ -186,7 +186,14 @@ unknown, not a zero count or permission to take ownership.
 The engine remains the status-data authority; Manager still applies rendered
 options through `mux-status-v1` and republishes live observations. Status pushes
 carry the expected mapping revision and incarnation, and discovered mappings
-also recheck the native incarnation before presentation. When Manager is absent,
+also recheck the native incarnation before presentation. Their first status
+apply initializes session-scoped status formats through that same writer;
+standalone admission initializes those formats before registration. Both paths
+remain retryable if initialization fails, without changing global mux settings.
+A complete valid native listing that confirms disappearance retires the mapping
+through the existing revision/incarnation-guarded tombstone path. Failed or
+malformed probes and same-name replacements do not authorize retirement.
+When Manager is absent,
 the existing standalone engine writer remains available. An unavailable or
 refusing configured Manager is not permission to bypass its presentation lane.
 An older Manager that does not support discovery remains visibly deferred and

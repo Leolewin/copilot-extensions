@@ -252,3 +252,30 @@ restarted or updated to force acceptance. No productive rollout is performed.
   Touched-code lint, install closure, module-size and headless-launch checks
   pass. All five review findings have concrete fix replies; fresh review and
   required CI still gate the source merge.
+
+### 2026-10-22 - Status visibility and lifecycle review
+
+- Corrected the next review's three new defects: confirmed native
+  disappearance retires only the matching revision/incarnation; newly
+  discovered sessions initialize visible session-scoped status formats through
+  the existing presentation writers; and custom shell prefixes are no longer
+  parsed as native Copilot directory flags. Unknown probes and concurrent or
+  same-name replacement identities retain their existing protections.
+- New format controls cover both tmux and PSMux, initial admission and failed
+  initialization retries. The custom PowerShell `-C copilot` launch shape is
+  exercised through an actual disposable native child, not just launch JSON.
+  The repeated absolute-PSMux review item was already fixed by the shared
+  executable classifier; it was not treated as a new defect.
+- Independent integrated validation passes 504 engine launch/session/status
+  cases in 87.14 seconds and 155 Manager discovery, daemon, attachment and
+  native IPC cases in 18.58 seconds, within the unchanged containment limits.
+  The status implementer's fail-first controls distinguished confirmed absence
+  and initially unconfigured presentation before the fixes.
+- Retained the additional POSIX direct-embodiment/manual-attachment witness
+  reported on #7962 as an acceptance input, not independent daemon diagnosis
+  or proof of native POSIX qualification. Source acceptance still does not
+  authorize rollout or claim human keyboard/real Copilot resume acceptance.
+- Documentation impact: launch-template prefix compatibility, initial
+  presentation and guarded mapping retirement are now stated in their
+  existing references. No new service, global mux setting, restart owner or
+  graceful-cutover path was introduced.

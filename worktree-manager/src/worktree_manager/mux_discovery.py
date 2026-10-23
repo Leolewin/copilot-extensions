@@ -56,7 +56,7 @@ def status_key_content(payload: dict, values: dict) -> dict:
     }}
 
 
-def status_fence_failure(entry: dict, payload: dict) -> dict | None:
+def status_fence_failure(entry: dict, payload: dict, *, registry=None) -> dict | None:
     if any(
         field in payload and payload[field] != entry.get(field)
         for field in ("mapping_revision", "mux_session", "session_incarnation")
@@ -65,8 +65,40 @@ def status_fence_failure(entry: dict, payload: dict) -> dict | None:
     if entry.get("native_session_incarnation"):
         confirmed = confirm_native_session(entry, connected_only=False)
         if not confirmed.get("applied"):
+            if confirmed.get("reason") == "session-absent" and registry is not None:
+                return retire_missing_mapping(registry, entry)
             return confirmed
     return None
+
+
+def retire_missing_mapping(registry: MuxMappingRegistry, entry: dict) -> dict:
+    from .mux_daemon_live import publish_live_observation
+
+    result = registry.remove(
+        entry["project"], entry["worktree_id"],
+        mapping_revision=entry["mapping_revision"], mux_session=entry["mux_session"],
+        session_incarnation=entry.get("session_incarnation"),
+    )
+    if result.get("applied"):
+        current = registry.get(entry["project"], entry["worktree_id"])
+        if current is not None and not current["live"] and all(
+            current.get(field) == entry.get(field)
+            for field in ("mapping_revision", "mux_session", "session_incarnation")
+        ):
+            publish_live_observation(current, ensure_monitor=False)
+    return {"applied": False, "reason": "not-live"}
+
+
+def initial_status_values(entry: dict, values: dict) -> dict:
+    """Use the launcher's cached-option formats through the existing status writer."""
+    if not entry.get("native_session_incarnation") or entry.get("last_status_rendered_at"):
+        return values
+    return {
+        "status": "on", "status-interval": "15",
+        "status-left-length": "100", "status-left": "#{@aw_ctx} ",
+        "status-right-length": "150", "status-right": "#{@aw_seg} %H:%M ",
+        **values,
+    }
 
 
 def discover_mapping(registry: MuxMappingRegistry, payload: dict) -> dict:
@@ -101,8 +133,18 @@ def confirm_native_session(payload: dict, *, connected_only: bool) -> dict:
         return {"applied": False, "reason": "enumeration-unavailable"}
     if probe.returncode != 0:
         return {"applied": False, "reason": "enumeration-unavailable"}
-    matches = [line.split("\t", 3) for line in (probe.stdout or "").splitlines()
-               if line.split("\t", 1)[0] == name]
+    if not isinstance(probe.stdout, str):
+        return {"applied": False, "reason": "session-unconfirmed"}
+    rows = [line.split("\t", 3) for line in probe.stdout.splitlines() if line.strip()]
+    if any(
+        len(row) != 4 or not row[0] or not row[1].isdecimal() or not row[3]
+        or not row[2].partition(":")[0] or not row[2].partition(":")[2].isdecimal()
+        for row in rows
+    ):
+        return {"applied": False, "reason": "session-unconfirmed"}
+    matches = [row for row in rows if row[0] == name]
+    if not matches:
+        return {"applied": False, "reason": "session-absent"}
     if len(matches) != 1 or len(matches[0]) != 4:
         return {"applied": False, "reason": "session-unconfirmed"}
     _, count, incarnation, path = matches[0]

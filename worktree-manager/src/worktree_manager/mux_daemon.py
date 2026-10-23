@@ -293,6 +293,7 @@ def apply_status_options(entry: dict, values: dict) -> bool:
     returns ``True`` only if every write succeeded."""
     mux_bin = entry["mux_bin"]
     session = entry["mux_session"]
+    values = mux_discovery.initial_status_values(entry, values)
     all_ok = True
     for option, value in values.items():
         try:
@@ -486,7 +487,7 @@ def build_compute(
             entry = registry.get(project, worktree_id)
             if entry is None or not entry["live"]:
                 return {"applied": False, "reason": "not-live"}
-            fence_failure = mux_discovery.status_fence_failure(entry, payload)
+            fence_failure = mux_discovery.status_fence_failure(entry, payload, registry=registry)
             if fence_failure is not None:
                 return fence_failure
 
@@ -509,19 +510,12 @@ def build_compute(
             # not still be treated as a valid write target. A dead session
             # invalidates the mapping so a later lookup does not repeat the
             # same probe forever.
-            if not _mux_session_alive(entry["mux_bin"], entry["mux_session"]):
-                # Guard with session identity too: a concurrent register()
-                # can replace this mapping at the same revision between the
-                # snapshot above and this call.
-                registry.remove(
-                    project, worktree_id,
-                    mapping_revision=entry["mapping_revision"], mux_session=entry["mux_session"],
-                    session_incarnation=entry.get("session_incarnation"),
-                )
-                tombstone = registry.get(project, worktree_id)
-                if tombstone is not None:
-                    mux_daemon_live.publish_live_observation(tombstone, ensure_monitor=False)
-                return {"applied": False, "reason": "not-live"}
+            # Discovered mappings already passed the identity-aware enumeration;
+            # only legacy mappings still need the name-only liveness probe.
+            if not entry.get("native_session_incarnation") and not _mux_session_alive(
+                entry["mux_bin"], entry["mux_session"],
+            ):
+                return mux_discovery.retire_missing_mapping(registry, entry)
 
             # Recheck immediately before the actual write (Copilot review
             # finding): a concurrent CLI register/remove could still have

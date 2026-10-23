@@ -229,3 +229,137 @@ def test_unknown_registry_state_is_not_an_absent_mapping(monkeypatch, tmp_path, 
     registry = MuxMappingRegistry(path)
     assert not mux_discovery.discover_mapping(registry, _payload())["applied"]
     assert path.read_text(encoding="utf-8") == contents
+
+
+def _admitted_status_fixture(monkeypatch, tmp_path, *, mux_bin="mux"):
+    _probe(monkeypatch)
+    registry = MuxMappingRegistry(tmp_path / "mapping.json")
+    assert mux_discovery.discover_mapping(registry, _payload(mux_bin=mux_bin))["applied"]
+    observations = []
+    monkeypatch.setattr(mux_daemon.mux_daemon_live, "publish_live_observation",
+                        lambda entry, **kw: observations.append(dict(entry)) or {"applied": True})
+    status = dict(project="project", worktree_id="one", values={"@aw_ctx": "CTX", "@aw_seg": "SEG"},
+                  rendered_at="2026-10-22T12:00:00Z", mapping_revision=1,
+                  mux_session="wt-one", session_incarnation="$1:100")
+    return registry, mux_daemon.build_compute(registry), status, observations
+
+
+@pytest.mark.parametrize("listing", ["", "wt-other\t1\t$2:200\telsewhere\n"])
+def test_confirmed_native_disappearance_retires_and_stops_republication(monkeypatch, tmp_path, listing):
+    registry, compute, status, observations = _admitted_status_fixture(monkeypatch, tmp_path)
+    _probe(monkeypatch, listing)
+    assert not compute(mux_daemon.KIND, status)["applied"]
+    assert not registry.get("project", "one")["live"]
+    assert not registry.has_any_live()
+    assert len(observations) == 1 and not observations[0]["live"]
+    assert mux_daemon._republish_live_mappings(registry, ensure_monitor=False)
+    assert len(observations) == 1
+
+
+@pytest.mark.parametrize("listing,code", [
+    ("", 1), ("bad", 0), ("other\tbad\t$2:200\tpath\n", 0),
+    ("other\t1\t\tpath\n", 0), ("wt-one\t1\t$2:200\tworkspace\n", 0), (None, 0),
+])
+def test_unknown_probe_or_same_name_replacement_does_not_retire(monkeypatch, tmp_path, listing, code):
+    registry, compute, status, observations = _admitted_status_fixture(monkeypatch, tmp_path)
+    before = registry.snapshot()
+    _probe(monkeypatch, listing, code)
+    assert not compute(mux_daemon.KIND, status)["applied"]
+    assert registry.snapshot() == before
+    assert observations == []
+
+
+@pytest.mark.parametrize("error", [OSError("fixture"), subprocess.TimeoutExpired("mux", 2)])
+def test_failed_native_probe_does_not_retire_discovered_mapping(monkeypatch, tmp_path, error):
+    registry, compute, status, observations = _admitted_status_fixture(monkeypatch, tmp_path)
+    before = registry.snapshot()
+
+    def unavailable(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr(mux_discovery, "run_mux_child", unavailable)
+    assert not compute(mux_daemon.KIND, status)["applied"]
+    assert registry.snapshot() == before
+    assert observations == []
+
+
+@pytest.mark.parametrize("revision,incarnation", [(2, "$1:100"), (1, "$2:200")])
+def test_disappearance_retirement_preserves_concurrent_owner(
+    monkeypatch, tmp_path, revision, incarnation,
+):
+    registry, compute, status, observations = _admitted_status_fixture(monkeypatch, tmp_path)
+
+    def replacement_during_probe(*args, **kwargs):
+        registry.register(dict(_payload(session_incarnation=incarnation),
+                               mapping_revision=revision, native_session_incarnation=incarnation))
+        return subprocess.CompletedProcess(args, 0, stdout="")
+
+    monkeypatch.setattr(mux_discovery, "run_mux_child", replacement_during_probe)
+    assert not compute(mux_daemon.KIND, status)["applied"]
+    current = registry.get("project", "one")
+    assert current["live"]
+    assert (current["mapping_revision"], current["session_incarnation"]) == (revision, incarnation)
+    assert observations == []
+
+
+def test_confirmed_native_presence_does_not_use_unknown_legacy_liveness(monkeypatch, tmp_path):
+    registry, compute, status, _ = _admitted_status_fixture(monkeypatch, tmp_path)
+    monkeypatch.setattr(mux_daemon, "_mux_session_alive", lambda *a: False)
+    monkeypatch.setattr(mux_daemon, "apply_status_options", lambda *a: True)
+    assert compute(mux_daemon.KIND, status)["applied"]
+    assert registry.get("project", "one")["live"]
+
+
+@pytest.mark.parametrize("mux_bin", ["tmux", "psmux"])
+def test_discovered_manager_status_initializes_session_formats_through_existing_writer(
+    monkeypatch, tmp_path, mux_bin,
+):
+    registry, compute, status, _ = _admitted_status_fixture(monkeypatch, tmp_path, mux_bin=mux_bin)
+    options = {}
+    calls = []
+
+    def apply(argv, **kwargs):
+        calls.append(argv)
+        assert argv[0] == mux_bin
+        if argv[1] == "set-option":
+            assert argv[2:4] == ["-t", "wt-one"]
+            assert "-g" not in argv
+            options[argv[4]] = argv[5]
+        return subprocess.CompletedProcess(argv, 0)
+
+    monkeypatch.setattr(mux_daemon, "run_mux_child", apply)
+    assert compute(mux_daemon.KIND, status)["applied"]
+    assert options["status-left"] == "#{@aw_ctx} "
+    assert options["status-right"] == "#{@aw_seg} %H:%M "
+    assert options["status"] == "on"
+    assert options["status-left-length"] == "100"
+    assert options["status-right-length"] == "150"
+    assert options["@aw_ctx"] == "CTX" and options["@aw_seg"] == "SEG"
+    assert registry.get("project", "one")["last_status_rendered_at"] == status["rendered_at"]
+    calls.clear()
+    assert compute(mux_daemon.KIND, dict(status, rendered_at="2026-10-22T12:00:01Z"))["applied"]
+    assert not any(argv[1] == "set-option" and argv[4].startswith("status") for argv in calls)
+
+
+@pytest.mark.parametrize("mux_bin", ["tmux", "psmux"])
+def test_failed_manager_format_initialization_remains_retryable(monkeypatch, tmp_path, mux_bin):
+    registry, compute, status, _ = _admitted_status_fixture(monkeypatch, tmp_path, mux_bin=mux_bin)
+    writes = []
+    failing = [True]
+
+    def apply(argv, **kwargs):
+        assert argv[0] == mux_bin
+        if argv[1] == "set-option":
+            writes.append(argv[4])
+        return subprocess.CompletedProcess(
+            argv, 1 if argv[1] == "set-option" and argv[4] == "status-right" and failing[0] else 0,
+        )
+
+    monkeypatch.setattr(mux_daemon, "run_mux_child", apply)
+    assert compute(mux_daemon.KIND, status)["reason"] == "apply-failed"
+    assert registry.get("project", "one")["last_status_rendered_at"] is None
+    assert "status-left" in writes and "@aw_seg" in writes
+    failing[0] = False
+    writes.clear()
+    assert compute(mux_daemon.KIND, status)["applied"]
+    assert "status-left" in writes and "status-right" in writes

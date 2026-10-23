@@ -2166,6 +2166,7 @@ def _build_launch_cmd(
             if recovery:
                 cmd.append("--recovery")
 
+    passthrough_start = len(cmd)
     extra = getattr(args, "copilot_args", []) or []
     cmd.extend(extra)
 
@@ -2173,7 +2174,9 @@ def _build_launch_cmd(
     profile_args = profile.copilot_args if profile and profile.copilot_args else []
     cmd.extend(profile_args)
     if "--acp" not in cmd:
-        cmd = bind_execution_directory(cmd, work_dir, LaunchPreflightError)
+        cmd = bind_execution_directory(
+            cmd, work_dir, LaunchPreflightError, passthrough_start=passthrough_start,
+        )
 
     # Auto-approve everything so worktree sessions run without any
     # confirmation prompts.  --allow-all is equivalent to

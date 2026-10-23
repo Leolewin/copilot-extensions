@@ -26,12 +26,17 @@ def _normalized_setup_index(command) -> int | None:
     return None
 
 
-def bind_execution_directory(command, work_dir: str, error_type):
+def bind_execution_directory(command, work_dir: str, error_type, *, passthrough_start: int = 1):
     """Keep native resume in the selected workspace, not its historical cwd."""
     selected = os.path.normcase(os.path.abspath(work_dir))
     normalized = _normalized_setup_index(command)
-    result = []
-    index = 0
+    # Shell options belong to the launcher, not to the native Copilot argv.
+    index = normalized + 1 if normalized is not None else next(
+        (i + 1 for i, arg in enumerate(command[:passthrough_start])
+         if PureWindowsPath(arg).stem.casefold() == "copilot"),
+        passthrough_start,
+    )
+    result = list(command[:index])
     while index < len(command):
         arg = command[index]
         setup_flag = normalized is not None and (

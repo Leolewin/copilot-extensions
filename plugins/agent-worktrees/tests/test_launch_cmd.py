@@ -175,6 +175,42 @@ def test_foreign_or_missing_launch_directory_is_refused(directory_args):
         m._build_launch_cmd(_config(), _args(directory_args), "/selected worktree")
 
 
+@pytest.mark.parametrize("recovery", [False, True])
+@pytest.mark.parametrize("prefix", [
+    ["pwsh.exe", "-NoProfile", "-C", "copilot"],
+    ["pwsh.exe", "-NoProfile", "-Command", r"C:\Tools\copilot.exe"],
+    ["bash", "-c", "copilot"],
+])
+def test_custom_launch_preserves_shell_prefix_and_binds_copilot_directory(prefix, recovery):
+    config = _config({"linux": prefix})
+    config.repos["ext"] = dataclasses.replace(
+        config.default_repo, launch_recovery={"linux": prefix},
+    )
+    args = _args(["--resume", "conversation", "-C", "/selected worktree"])
+    args.recovery = recovery
+    command = _inner_command(m._build_launch_cmd(config, args, "/selected worktree"))
+    assert command[:len(prefix)] == prefix
+    assert command[len(prefix):len(prefix) + 2] == ["--resume", "conversation"]
+    assert command.count("-C=/selected worktree") == 1
+    with pytest.raises(m.LaunchPreflightError, match="directory"):
+        m._build_launch_cmd(config, _args(["-C", "/foreign"]), "/selected worktree")
+
+
+def test_custom_launch_embedded_copilot_directory_cannot_override_workspace():
+    config = _config({"linux": ["pwsh.exe", "-C", "copilot", "-C", "/foreign"]})
+    with pytest.raises(m.LaunchPreflightError, match="directory"):
+        m._build_launch_cmd(config, _args([]), "/selected worktree")
+
+
+def test_unknown_launcher_prefix_is_not_parsed_as_copilot_arguments():
+    prefix = ["custom-launcher", "-C", "own-option"]
+    command = _inner_command(m._build_launch_cmd(
+        _config({"linux": prefix}), _args([]), "/selected worktree",
+    ))
+    assert command[:len(prefix)] == prefix
+    assert "-C=/selected worktree" in command[len(prefix):]
+
+
 @pytest.mark.parametrize("script,shell,flag", [
     ("default-setup.ps1", r"C:\Program Files\PowerShell\pwsh.exe", "-ExecutionDirectory"),
     ("default-setup.sh", "/usr/bin/bash", "--execution-directory"),
@@ -1213,6 +1249,36 @@ def test_default_setup_ps1_double_dash_copilot_args_not_mis_bound_positionally(
         "--allow-all", "--experimental", "--model", "claude-sonnet-5",
         "--reasoning-effort", "medium", "--context", "long_context",
     ]
+
+
+@pytest.mark.skipif(os.name != "nt", reason="native PowerShell-to-command argument forwarding")
+def test_custom_powershell_command_forwards_selected_directory(tmp_path):
+    from agent_procutil import no_window_kwargs
+
+    shell = shutil.which("pwsh")
+    if not shell:
+        pytest.skip("pwsh is unavailable")
+    selected = tmp_path / "selected worktree"
+    selected.mkdir()
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    marker = tmp_path / "native-argv.txt"
+    (bin_dir / "copilot.cmd").write_text(
+        '@echo off\r\n> "%NATIVE_ARGV_MARKER%" echo %*\r\n', encoding="utf-8",
+    )
+    command = _inner_command(m._build_launch_cmd(
+        _config({"linux": [shell, "-NoProfile", "-C", "copilot"]}),
+        _args(["--resume=synthetic-anchor-origin"]), str(selected),
+    ))
+    completed = subprocess.run(
+        command, cwd=selected,
+        env={**os.environ, "PATH": str(bin_dir), "NATIVE_ARGV_MARKER": str(marker)},
+        capture_output=True, text=True, timeout=20, **no_window_kwargs(),
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    received = marker.read_text(encoding="utf-8")
+    assert f"-C={selected}" in received
+    assert "--resume=synthetic-anchor-origin" in received
 
 
 @pytest.mark.skipif(os.name != "nt", reason="native PowerShell-to-command argument forwarding")

@@ -12,16 +12,69 @@ _real_register_standalone = discovery._register_standalone
 
 @pytest.fixture(autouse=True)
 def matching_native_path(monkeypatch):
+    from agent_worktrees import status_monitor_runtime
+
     original = discovery._session_path_matches
     monkeypatch.setattr(discovery, "_session_path_matches", lambda *args: True)
     monkeypatch.setattr(discovery, "_register_standalone", lambda *args: True)
     monkeypatch.setattr(discovery, "_last_session", None)
     monkeypatch.setattr(discovery, "_retry_after", {}, raising=False)
+    monkeypatch.setattr(status_monitor_runtime, "_monitor_mux_set", lambda *args: True)
     return original
 
 
 def _record(wt_id, path):
     return SimpleNamespace(worktree_id=wt_id, worktree_path=str(path), status="active")
+
+
+@pytest.mark.parametrize("mux_bin", ["tmux", "psmux"])
+def test_standalone_discovery_initializes_session_formats_before_registration(
+    monkeypatch, tmp_path, mux_bin,
+):
+    from agent_worktrees import status_monitor_runtime
+
+    monkeypatch.setattr(discovery, "_tracked_worktrees",
+                        lambda: [("project", _record("one", tmp_path))])
+    monkeypatch.setattr(discovery, "discover_via_manager", lambda payload: None)
+    options = {}
+    events = []
+
+    def write(mux, name, option, value):
+        assert mux == mux_bin and name == "wt-one"
+        options[option] = value
+        events.append(option)
+        return True
+
+    monkeypatch.setattr(status_monitor_runtime, "_monitor_mux_set", write)
+    monkeypatch.setattr(discovery, "_register_standalone",
+                        lambda *args: events.append("register") or True)
+    assert discovery.discover_connected_worktrees(
+        {"wt-one": (1, "$1:100")}, mux_bin, None,
+    ) == {"wt-one": str(tmp_path)}
+    assert options["status-left"] == "#{@aw_ctx} "
+    assert options["status-right"] == "#{@aw_seg} %H:%M "
+    assert options["status"] == "on"
+    assert options["status-left-length"] == "100"
+    assert options["status-right-length"] == "150"
+    assert events[-1] == "register"
+
+
+@pytest.mark.parametrize("mux_bin", ["tmux", "psmux"])
+def test_failed_standalone_format_initialization_does_not_complete_admission(
+    monkeypatch, tmp_path, mux_bin,
+):
+    from agent_worktrees import status_monitor_runtime
+
+    monkeypatch.setattr(discovery, "_tracked_worktrees",
+                        lambda: [("project", _record("one", tmp_path))])
+    monkeypatch.setattr(discovery, "discover_via_manager", lambda payload: None)
+    monkeypatch.setattr(status_monitor_runtime, "_monitor_mux_set",
+                        lambda mux, name, option, value: option != "status-right")
+    monkeypatch.setattr(discovery, "_register_standalone",
+                        lambda *args: pytest.fail("unconfigured session must remain retryable"))
+    assert discovery.discover_connected_worktrees(
+        {"wt-one": (1, "$1:100")}, mux_bin, None,
+    ) == {}
 
 
 def test_manual_reattach_discovers_all_connected_tracked_sessions(monkeypatch, tmp_path):

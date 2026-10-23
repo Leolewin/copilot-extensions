@@ -99,6 +99,18 @@ def _register_standalone(name: str, path: str, incarnation: str, registry_dir) -
     )
 
 
+def _initialize_standalone_presentation(mux_bin: str, name: str) -> bool:
+    from .status_monitor_runtime import _monitor_mux_set
+
+    options = {
+        "status": "on", "status-interval": "15",
+        "status-left-length": "100", "status-left": "#{@aw_ctx} ",
+        "status-right-length": "150", "status-right": "#{@aw_seg} %H:%M ",
+    }
+    applied = [_monitor_mux_set(mux_bin, name, option, value) for option, value in options.items()]
+    return all(applied)
+
+
 def _session_path_matches(mux_bin: str, name: str, path: str) -> bool:
     try:
         result = subprocess.run(
@@ -264,6 +276,9 @@ def discover_connected_worktrees(
                 before_discover()
             result = discover_via_manager(payload) if project is not None else None
             if result is None:
+                if not _initialize_standalone_presentation(mux_bin, name):
+                    LOG.warning("Connected mux %s session format initialization failed", name)
+                    continue
                 if not _register_standalone(name, path, incarnation, registration_dir):
                     LOG.warning("Connected mux %s standalone registration failed", name)
                     continue

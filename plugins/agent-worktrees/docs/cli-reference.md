@@ -47,7 +47,9 @@ or its conversation.
 
 New native launches explicitly select the execution directory, including when
 resuming a conversation originally created in an anchor or another directory.
-A conflicting `-C` override is refused. Normalized setup passes the directory
+A conflicting Copilot `-C` override is refused; a custom launcher's prefix
+options (such as PowerShell's `-C` command abbreviation) remain unchanged.
+Normalized setup passes the directory
 through its own named parameter and constructs Copilot's native `-C` argument
 only after shell parameter parsing, preserving Windows drive paths and spaces.
 ACP keeps its existing workspace authority.
