@@ -7,6 +7,37 @@ How to run the plugin test suites, the fast gates to run before a push, and the
 > keeps only a short inline summary; the per-plugin release/versioning rules live
 > in [`docs/pipelines.md`](docs/pipelines.md).
 
+## Optional Dispatch service replay
+
+`tools/run-plugin-tests.py agent-dispatch --test-file tests/test_delegated_replay_consumer.py
+--test-file tests/test_delegated_replay_transport.py` exercises the finite replay
+consumer and actual TLS/PoP Gateway/connector with isolated SQLite and replay
+stores. Dispatch's dev preparation selects the same checkout's PR and Fleet
+packages; default Dispatch installs remain independent. The existing manual
+`installation-context-acceptance.yml` `dispatch_delegation=true` selector runs
+these alongside the local callback contracts on Linux and Windows. No new job,
+production credential or fleet placement is added. This does not qualify the
+unimplemented installed consumer lifecycle or production fleet budgets.
+
+## Optional diagnostic telemetry
+
+The shared `libs/process-telemetry` contract is exercised by its real Bridge
+consumer. Run the bounded runner for `agent-bridge` with
+`--test-file tests/test_process_telemetry.py --test-file tests/test_telemetry.py`
+and for `agent-dispatch` with `--test-file tests/test_telemetry.py`.
+These tests prove bounded producer behavior and compatibility, not native
+startup latency or OpenTelemetry export. Threaded blocked/throwing sink controls
+belong to the on-demand integration portfolio, not required unit-only CI.
+The [reviewed effort](efforts/active/performance-telemetry/README.md) retains
+native boundary, actual SDK/local receiver and overhead qualification.
+
+For the optional export lane, explicitly prepare the isolated test environment
+with `agent-process-telemetry[otlp]` using the source library and the same
+seven-day dependency policy, then select `tests/test_otlp_telemetry.py` in the
+Bridge runner. It uses an owned port-zero loopback receiver and synthetic
+protobuf file readback, never a shared collector. A missing extra skips the
+module and is not passing wire proof. Normal producer installs remain SDK-free.
+
 ## Static SSH plugin preparation
 
 Bridge's `tests/test_ssh_plugin_preparation.py` executes the streamed stdlib
@@ -43,6 +74,41 @@ creation, produces an explicit missing-privilege skip; other failures propagate.
 Supported POSIX and provisioned Windows hosts still execute the real linked-file
 refusal assertions. No test enables Developer Mode or elevates the process.
 `tools/test_symlink_capability.py` checks that classification independently.
+
+## Client frontdoor native acceptance
+
+`fleet-manager/tests/test_client_frontdoor_native.py` separates the real
+construction prerequisite, concurrent independent registration owners, and
+platform command/exact-rerun behavior. The constructed client remains the real
+offline installed distribution; no construction, health, publication or
+registration primitive is mocked. Per-case 90-second, build 30-second,
+registration-child 60-second and command 20-second bounds remain unchanged.
+Each registration case uses actual owned command withdrawal at teardown so a
+different test's directory cannot become its registration authority.
+
+On slower native Windows hosts, run each native case as a separate
+`PYTEST_ADDOPTS=-k` selection through
+`tools/run-standalone-tests.py`, retaining its 120-second caller bound. Use
+`construction_prerequisite`, `owners_serialize_and_reuse` and
+`commands_and_exact_rerun` in separate invocations. Each registration/command
+case still constructs its real prerequisite through the shared fixture; the
+separate construction case asserts the prerequisite's own contract. An owner
+selection may instead include `construction_prerequisite or owners_serialize_and_reuse`
+so the first test owns construction's existing 90-second clock before the
+independent-owner case's own 90-second clock begins. That pair still has the
+same 120-second caller bound; it is not a function-only timeout exemption. A missed
+stage deadline is still a failure, not a reason to omit health, skip an
+assertion or extend the timeout. Ordinary ownership/fault cases remain in
+`test_client_frontdoor.py`; the periodic standalone suite discovers both files.
+
+`libs/versioned-runtime/tests/test_receipt_header_publication.py` exercises
+unpublished empty/partial/synced header attempts, abrupt producer death, a
+concurrent foreign final-name winner, identity-checked append reopening and the
+pre-effect callback boundary. `fleet-manager/tests/test_client_first_publication.py`
+checks that initial failures leave no pending owner and that an interrupted
+later header cannot poison a previously pending selector retry. Existing strict
+receipt/parser and pending-withdrawal suites still cover malformed legacy proof;
+the new constructor must not repair it.
 
 ## Unit-only promotion packet
 
@@ -243,6 +309,17 @@ The activation package's remote-identity compatibility export imports the
 canonical pure-stdlib parser from `plugin_resolve.remote_identity`; both source
 files are hash-bound in that existing import closure. This adds no unit nodes,
 coverage targets, effects or budget, and does not enroll SSH dispatch tests.
+
+`tools/promotion_unit_tests/test_remote_login_shell.py` re-exports five original
+functions and their unchanged parameterization from
+`libs/remote-login-shell/tests/test_remote_login_shell.py`. Replacing only the
+file prefix maps thirteen callable cases to release identities. The original
+test, canonical production module and adapter are hash-bound; each admitted
+case must contribute actual production call coverage under the unchanged
+observer, root and budget. No shell process is launched. The fourteenth original
+case, `test_posix_login_shells_vocabulary`, asserts only a constant and has no
+production call context. It remains an explicit unmapped policy residual, not
+deleted coverage, a relaxed admission rule or a completed historical census.
 
 ## Tracking-write source guard
 
@@ -1001,6 +1078,34 @@ config, so copies retain identical blobs even when system Git configuration
 enables line-ending normalization. Its regression creates the matching squash
 commit, pushes it and runs the real pull-forward operation; production Git
 configuration and rebase conflict handling remain unchanged.
+
+Landing explanations evaluate each base's complete evidence once and reuse
+those checks only while forming that read-only report. Its creation-history
+queries share a context-local snapshot that is discarded even when the report
+raises. Native Git regressions add an empty commit or expire actual reflog
+evidence after a report, requiring later reports and pruning checks to read
+fresh state. Report fields, refusal messages and provider validation remain
+unchanged. Historical cross-base cases copy complete prepared Git topologies
+for both publication bases, retaining independent objects, refs and reflogs;
+each case still performs its own later commit/revert, rewrite, expiry or
+shadow mutation and original safety assertions.
+
+Config-overlay regressions require self-hosted lookups to retain base and
+machine-local sources without resolving an unused state root. Stateless and
+external-state configurations still resolve the knowledge overlay on every
+call, including changed or removed bindings. `config_sources` owns this read
+path; `state_root` re-exports the same types and function for existing callers.
+The diverged-checkout Git fixtures
+hide only the unrelated CodeSpace CLI from discovery, leaving real Git,
+finalization, status polling and checkout-invalidation assertions intact.
+The claim-warning suite separately exercises CodeSpace CLI invocation.
+The native consoleless-parent observation in `test_pr_rebase.py` also executes
+both state-root Git probes over two cycles, observing windows and foreground
+transitions without pytest's subprocess-suppression hook.
+Post-publication refspec finalization cases use the existing private-copy
+publication fixture. They still perform their own real squash merge, fetch,
+reconciliation and unchanged branch/content assertions; publication itself is
+executed by the shared seed rather than repeated as setup in each case.
 
 The optional profile-assignment-state failure guard follows both real command
 layers returned by worktree creation: exact record-bound execution admission,
