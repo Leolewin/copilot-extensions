@@ -4,7 +4,7 @@
 - **Repo:** copilot-extensions
 - **Branch(es):** independent reviewed slices targeting `dev`
 - **Created:** 2026-10-22
-- **Status:** Draft
+- **Status:** Active
 - **Vision:** `visions/process-telemetry/README.md`; Picker responsive-by-budget
 - **Umbrella issue:** #7935
 - **Sub-issues:** #5900
@@ -33,6 +33,10 @@ lossy observations, never durable recovery facts or ownership authority.
   they retain their launch/preparation files.
 - Preserve maintenance #7694/#7788, startup #3303, churn #6086, readiness #5215
   and process-registry #5559 ownership. This effort does not close them.
+- Execution uses only this effort's native workers or newly created owned
+  local workers. Do not contact pre-existing agent sessions, use agent-chat or
+  dispatch remote workers. Detect overlap through read-only forge/task state
+  and escalate conflicts to the coordinator; retain existing claims and PRs.
 
 ## Context
 
@@ -69,18 +73,18 @@ startup/new-resume, then hooks.
 ## Plan
 
 ### Phase 1 — Reviewed interface
-- [ ] Review and merge this plan and interface before implementation.
-- [ ] Publish the stable interface to production owners without editing their
+- [x] Review and merge this plan and interface before implementation.
+- [x] Publish the stable interface to production owners without editing their
   reserved launch/preparation files.
 
 ### Phase 2 — Bounded producer and local qualification
-- [ ] Evolve the existing seam with compatibility adapters and existing
+- [x] Evolve the existing seam with compatibility adapters and existing
   lifecycle consumers; retain public functions and content-free reducers.
-- [ ] Add bounded opt-in buffering with explicit owner lifecycle, drop counters,
+- [x] Add bounded opt-in buffering with explicit owner lifecycle, drop counters,
   no caller-side sink work and no waiting on shutdown.
 - [ ] Implement typed launch/process measurements and pure offline reports,
   retaining incomplete samples and unknown measurements.
-- [ ] Document the performance-impact contract and reproducible native flow
+- [x] Document the performance-impact contract and reproducible native flow
   under #7935, without adding native effects to required unit CI.
 
 ### Phase 3 — Optional OpenTelemetry and consumer adoption
@@ -88,6 +92,10 @@ startup/new-resume, then hooks.
   on the SDK and no implicit environment-selected off-site destination.
 - [ ] Exercise real export to an isolated local receiver, including outage;
   a synthetic JSON mapping alone does not satisfy this item.
+- [ ] Retain structured logging and metric mappings as separate acceptance:
+  initial traces-only interoperability does not complete all telemetry.
+  Typed span events/counters or an explicit structured adapter must preserve
+  the default exclusion of free-form logs and content.
 - [ ] Integrate Manager and then hooks through their existing owners; use
   complete end-to-end observations, not sums of overlapping spans.
 - [ ] Obtain explicit collector host/lifecycle authorization before shared
@@ -121,9 +129,9 @@ startup/new-resume, then hooks.
 
 ## Proposal
 
-Review this bounded producer/interface plan first. Source implementation can
-proceed independently of shared collector deployment. Unavailable deployment
-authorization blocks that acceptance item, not pure implementation.
+Plan/interface approved and merged in #7991. Source implementation proceeds
+independently of shared collector deployment. Missing deployment authorization
+blocks that acceptance item, not pure implementation.
 
 ## Journal
 
@@ -134,3 +142,31 @@ authorization blocks that acceptance item, not pure implementation.
 - Public direction capture checked against the accepted constraints; private
   identifiers are omitted, not substituted into public examples.
 - No implementation, collector installation or service startup performed.
+
+### 2026-10-22 — Reviewed interface and first source slice
+
+- #7991 merged after an approving review and successful required checks.
+- Production owners received the interface; their launch/preparation files
+  remain untouched by this slice.
+- Extracted the existing registration/emission seam with both real compatibility
+  consumers, plus opt-in bounded buffering and content-free measurements.
+- The pure offline summary is deliberately not a full native qualification
+  report. Optional SDK/export, native adoption, overhead baselines and
+  collector receive-to-persist proof remain open; no shared deployment occurred.
+
+### 2026-10-23 — Bounded source merged
+
+- #8002 merged after approving review and successful required CI. Native
+  standalone snapshot imports for both consumers, registration/counter races
+  and integer bounds are covered; no deployed consumer was changed.
+- The next source slice adds real optional SDK traces and an isolated receiver.
+  A consumer-owned local receiver remains separately authorized and operated;
+  no producer install makes it mandatory.
+- Isolated Windows SDK 1.45.1 tests decoded actual OTLP protobuf from an owned
+  loopback receiver's file, including canary identity, environment exclusion,
+  redirect refusal and 503 outage. This is not shared collector persistence.
+- A 5,000-call synthetic microbenchmark measured disabled p50/p95 0.5/0.6us;
+  enabled no-op consumer 43.5/77.8us; blocked consumer 43.0/82.2us.
+  Saturating bursts dropped records as designed, and scheduling outliers reached
+  about 19.5ms. These are call-level observations, not a native UI overhead
+  percentage or a new enforced threshold.
