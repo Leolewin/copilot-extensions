@@ -153,6 +153,9 @@ CI/promotion enforcement remain the separate parent gate.
   the resident independently through two complete cycles. Prove actual PID
   and exit/control semantics, exact argv/environment/log delivery, bounded
   control reaping and zero visible windows or foreground changes.
+  _Two actual protocol cycles, all caller-Job closures, exact delivery, actual
+  cleanup and hidden own console passed in run 39876801692. Full
+  desktop/foreground observation remains open._
 - [ ] Exercise clean first adoption, repeat adoption, update, failed-update
   rollback, status, stop and uninstall in that approved disposable lane.
   Assert no stale registrations or abandoned owned instances remain.

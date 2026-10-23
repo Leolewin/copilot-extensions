@@ -541,3 +541,31 @@ repository history.
   [39875766662](https://github.com/ThomasMichon/copilot-extensions/actions/runs/39875766662).
   Continue from that exact native result before normal-launch integration;
   no shared-host adoption or deployment is authorized.
+
+### 2026-10-22 - Production protocol passes the disposable native lane
+
+- Run
+  [39875766662](https://github.com/ThomasMichon/copilot-extensions/actions/runs/39875766662)
+  still timed out before JSON parsing completed. The BSTR-array correction
+  alone did not qualify activation. The synthetic caller had removed OS profile
+  and program-directory context from its environment; restored only an explicit
+  OS-variable allowlist, retaining arbitrary credential exclusion.
+- Exact-head run
+  [39876801692](https://github.com/ThomasMichon/copilot-extensions/actions/runs/39876801692)
+  at `4d75361610125ad1818fd867eda164c4db05630b` passed the actual Windows
+  probe step and production protocol. Both resident cycles retained actual
+  process control, survived closure of all fixture-owned caller Jobs and finite
+  broker exit, delivered exact argv/environment/cwd and split logs, had no
+  visible own console, and completed actual child retirement.
+- The different-inner/shared-outer negative control passed again, and the
+  result confirmed removal of the uniquely owned registration and owned native
+  resources. This is synthetic source qualification, not installed deployment
+  or complete desktop-focus evidence.
+- The composed process, private framing/Windows transport and probe suite passed
+  663 tests with 31 explicit skips and confirmed sandbox retirement. The
+  diagnostic/context-focused suite passed 56 cases; lint passed.
+- Continue with owning-installer health gating and lifecycle/rollback evidence,
+  then cohesive default consumer integration. The ordinary launch path still
+  retains the old fallback; this repair draft must not merge or deploy as a
+  completed fix. Native POSIX, containing maintenance consumers, review,
+  legitimate release and separately authorized rollout remain open.
