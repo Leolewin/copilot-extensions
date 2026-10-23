@@ -38,6 +38,10 @@ Choose the simplest shape that fits; don't impose structure a plugin doesn't nee
 
 ## Design principles
 
+For launch, hook and repeated-work changes, apply
+[performance measurement](performance-measurement.md): explicit caller/work
+budgets, cheap diagnostic emission and honest native qualification.
+
 0. **Architectural change reconciles to the vision.** Before a change that adds
    or alters architecture or behavior, reconcile it to the relevant vision
    (`AGENTS.md` § Visions): it either **closes** a stated vision item (cite it),
@@ -102,6 +106,16 @@ Choose the simplest shape that fits; don't impose structure a plugin doesn't nee
 Invariants are **must-always-hold contracts between a vision and the code** — the
 narrow set of properties a change may never quietly break. They are the enforceable
 core of the principles above; a reviewer checks a change against these.
+
+- **Communication silence and process lifetime are separate clocks.** Services,
+  CLIs and tools use a short communication deadline renewed by every received
+  target update, including events a consumer does not semantically handle, and
+  an independent, very long process deadline with substantial disruption grace.
+  Nested preparation streams progress end-to-end rather than buffering it into
+  a completion summary. Silence alone is not execution failure or cancellation,
+  replacement or replay authority. See
+  [progress and timeout contract](progress-and-timeouts.md). (Serves
+  *Vision plugin-services §Features/progress-aware-service-and-tool-operations*.)
 
 - **Allocation and embodiment retain one execution workspace.** The ground
   layer allocates space without a session; bridge composes that allocation
@@ -394,7 +408,7 @@ the exemplars, and the vision it serves):
 | [codespace-repo-provenance](codespace-repo-provenance.md) | How a provider plugin defines a CodeSpace venue's **repo provenance** (vessel→product `workspace_repo` → the agent's `/workspaces/<product>` checkout + ACP cwd) and its in-venue plugins, via agent-codespaces' two convention-discovered manifest fields — `codespaceConfig` and `codespacePlugins` — so the golden path works with **no control-plane repo or user-level pointer** |
 | [work-coalescing-singleton](work-coalescing-singleton.md) | How many callers of the **same cheap, idempotent, shareable** work fold onto one warm, refcounted daemon instead of fanning out one worker per caller — the generalized `hook_ipc.py` wire protocol, the boot-wait/request-deadline timeout budgets, the ref-count/linger idle-exit algorithm, and the always-correct inline fallback, applied to agent-worktrees' resident classify/list accelerator and agent-mcp's per-`(host, server)` multiplexer |
 | [cold-spawn-latency-budget](cold-spawn-latency-budget.md) | Measured Windows cold-start cost per process kind (`node`/`python`/`powershell`/`pwsh`/warm-daemon-IPC), why hook *count* (not body size) drives `powershell.exe` spawns, why concurrent batches spike tail latency non-linearly, and the priority order for cutting cost: merge sibling hook entries, route through `work-coalescing-singleton` first, prefer a native wire-protocol client over a second cold interpreter, and optimize extension time-to-ready rather than chasing a language swap |
-| [claim-owned development generations](mutable-dev-slot.md) | Editable worktree source with immutable dependency environments: each claimed refresh builds a distinct generation, preserves its working predecessor on failure, and retains the original release rollback target |
+| [immutable development generations](mutable-dev-slot.md) | Frozen non-editable source-hashed venvs; exact healthy reuse, current-identity supersession and bidirectional healthy handoff; preserves claim restore targets and labels editable behavior as legacy |
 | [vendor-pointer](vendor-pointer.md) | How a duplicated payload surface stays DRY on `dev` yet ships self-contained on `main`: file-pointer stubs for mirrored docs, `uv`-editable canonical references for shared libs, direct canonical source lines for the shared installer engine, and the promotion-time copy-and-rewrite tools that turn each dev-time reference back into shipped local content |
 | [dev-main-promotion-pipeline](dev-main-promotion-pipeline.md) | The reusable, repo-portable template for this repo's own `dev`→`main` split: a stable zero-review `main` gated by content-shape (not identity) rather than a redundant second review, a changefile-driven version-bump system, the wholesale-tree-replace promotion mechanic, and the two ruleset misconfigurations that jammed it in production and why |
 | [compatibility-root-decoupling](compatibility-root-decoupling.md) | Why a reverse-import accessor back into a module you just extracted from (kept only so tests can keep monkeypatching the original root) is a trap that self-reinforces against every future split, and how to migrate off it incrementally: a real shared-module home for genuinely shared helpers, tests that patch at the definition site, retired per-name instead of a mass rewrite |

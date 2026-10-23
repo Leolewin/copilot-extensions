@@ -49,6 +49,61 @@ def test_zero_extra_commits_use_real_graph_evidence_without_creation_history(env
     )
 
 
+@pytest.mark.parametrize("interrupted", [False, True])
+def test_report_history_snapshot_never_survives_into_a_later_decision(
+    env, monkeypatch, interrupted,
+):
+    branch = f"worktree/{env.worktree_id}"
+    head = _git("rev-parse", "HEAD", cwd=env.clone)
+    original = git_ops.git
+    reads = []
+
+    def observed(*args, **kwargs):
+        if args[:3] == ("reflog", "show", "--format=%H%x09%gs"):
+            reads.append(args)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(git_ops, "git", observed)
+
+    def report():
+        with finalize_ref.report_history_snapshot():
+            assert finalize_ref.creation_point(branch, str(env.clone)) == head
+            assert finalize_ref.creation_point(
+                branch, str(env.clone), published_bases=("refs/remotes/origin/dev",),
+            ) == head
+            if interrupted:
+                raise RuntimeError("report interrupted")
+
+    if interrupted:
+        with pytest.raises(RuntimeError, match="report interrupted"):
+            report()
+    else:
+        report()
+    assert len(reads) == 1
+
+    _git("reflog", "expire", "--expire=now", branch, cwd=env.clone)
+    assert finalize_ref.creation_point(branch, str(env.clone)) == ""
+    with finalize_ref.report_history_snapshot():
+        assert finalize_ref.creation_point(branch, str(env.clone)) == ""
+    assert len(reads) == 3
+
+
+@pytest.mark.parametrize("mutation", ["expire", "delete", "shadow"])
+def test_reset_tip_batch_rechecks_remote_proof_after_a_report(env, mutation):
+    _git("checkout", "-q", "--detach", cwd=env.clone)
+    tip = landing_support._sync_worktree_branch_to_a_newer_main(env)
+    branch = f"worktree/{env.worktree_id}"
+    with finalize_ref.report_history_snapshot():
+        assert finalize_ref.creation_point(branch, str(env.clone)) == tip
+    if mutation == "expire":
+        _git("reflog", "expire", "--expire=now", "refs/remotes/origin/main", cwd=env.clone)
+    elif mutation == "delete":
+        _git("update-ref", "-d", "refs/remotes/origin/main", cwd=env.clone)
+    else:
+        _git("branch", "origin/main", tip, cwd=env.clone)
+    assert finalize_ref.creation_point(branch, str(env.clone)) != tip
+
+
 @pytest.mark.parametrize(
     "returncode,stdout",
     [(1, ""), (0, ""), (0, "unknown"), (0, "-1"), (0, "1\n2"), (0, "\u00b2")],
@@ -69,6 +124,49 @@ def test_unreadable_extra_commit_counts_never_authorize_finalization(
     )
 
 
+def test_graph_count_itself_verifies_all_refs_without_existence_probes(env, monkeypatch):
+    branch = f"worktree/{env.worktree_id}"
+    head = _git("rev-parse", "HEAD", cwd=env.clone)
+    base = "refs/remotes/origin/main"
+    (env.clone / "missing").write_text("a path is not a revision\n")
+    monkeypatch.setattr(
+        git_ops, "ref_exists",
+        lambda *args, **kwargs: pytest.fail("the graph query must validate its own inputs"),
+    )
+    assert finalize_open_pr_gate._extra_commit_count(
+        branch, head, base, cwd=str(env.clone),
+    ) == 0
+    for ref, published, upstream in [
+        ("missing", head, base), (branch, "missing", base),
+        (branch, head, "missing"), ("--all", head, base), ("", head, base),
+    ]:
+        assert finalize_open_pr_gate._extra_commit_count(
+            ref, published, upstream, cwd=str(env.clone),
+        ) is None
+
+
+@pytest.mark.parametrize("count", [None, 0, 1])
+def test_merged_block_message_uses_only_verified_graph_counts(monkeypatch, count):
+    record = SimpleNamespace(worktree_id="task", pr=SimpleNamespace(head_sha="head"), prs=[])
+    monkeypatch.setattr(
+        git_ops, "ref_exists",
+        lambda *args, **kwargs: pytest.fail("the graph query already verifies the refs"),
+    )
+    calls = []
+
+    def counted(ref, head, upstream, *, cwd):
+        calls.append((ref, head, upstream, cwd))
+        return count
+
+    monkeypatch.setattr(finalize_open_pr_gate, "_extra_commit_count", counted)
+    message = finalize_open_pr_gate.merged_pr_block_message(
+        record, "worktree/task", "upstream", cwd="unused",
+    )
+    assert ("carries further commits" in message) is (count == 1)
+    assert ("can't be verified" in message) is (count != 1)
+    assert calls and all(call == ("worktree/task", "head", "upstream", "unused") for call in calls)
+
+
 @pytest.mark.parametrize("later", [[], ["later\tcommit: new work"]])
 def test_creation_point_without_a_later_reset_needs_no_source_tip_reread(monkeypatch, later):
     monkeypatch.setattr(
@@ -84,8 +182,10 @@ def test_a_reset_after_earlier_local_work_still_reads_qualified_tips(monkeypatch
 
     def evidence(*args, **kwargs):
         calls.append(args)
-        if args[0] == "rev-parse":
-            return SimpleNamespace(returncode=1, stdout="")
+        if args[0] == "for-each-ref":
+            return SimpleNamespace(
+                returncode=0, stdout="refs/remotes/origin/dev\nrefs/remotes/origin/main\n",
+            )
         return SimpleNamespace(returncode=0, stdout="published\n")
 
     monkeypatch.setattr(git_ops, "git", evidence)
@@ -97,8 +197,42 @@ def test_a_reset_after_earlier_local_work_still_reads_qualified_tips(monkeypatch
         ],
         "created", "origin/dev", ("refs/remotes/origin/main",), "unused",
     ) == "published"
-    assert any(args[:4] == ("reflog", "show", "--format=%H", "refs/remotes/origin/main")
-               for args in calls)
+    assert calls == [
+        (
+            "for-each-ref", "--format=%(refname)", "refs/heads/origin/dev",
+            "refs/heads/origin/main", "refs/remotes/origin/dev", "refs/remotes/origin/main",
+        ),
+        (
+            "reflog", "show", "--format=%H",
+            "refs/remotes/origin/dev", "refs/remotes/origin/main", "--",
+        ),
+    ]
+
+
+@pytest.mark.parametrize("failure", ["refs", "reflog", "missing", "shadow"])
+def test_reset_tip_batch_never_uses_unavailable_or_shadowed_evidence(monkeypatch, failure):
+    calls = []
+
+    def evidence(*args, **kwargs):
+        calls.append(args)
+        if args[0] == "for-each-ref":
+            names = "refs/remotes/origin/main\n"
+            if failure == "missing":
+                names = ""
+            elif failure == "shadow":
+                names += "refs/heads/origin/main\n"
+            return SimpleNamespace(returncode=int(failure == "refs"), stdout=names)
+        return SimpleNamespace(returncode=1, stdout="published\n")
+
+    monkeypatch.setattr(git_ops, "git", evidence)
+    assert finalize_ref._later_resets_to_source(
+        [
+            "published\treset: moving to origin/main",
+            "created\tbranch: Created from origin/main",
+        ],
+        "created", "origin/main", (), "unused",
+    ) == "created"
+    assert len(calls) == (2 if failure == "reflog" else 1)
 
 
 @pytest.mark.parametrize("stdout", ["", "unknown", "-1", "1\n2", "\u00b2"])
@@ -120,8 +254,14 @@ def test_bad_counts_after_creation_exclusion_remain_unknown(monkeypatch, stdout)
         "tracked", "head", ("refs/remotes/origin/main", "refs/remotes/origin/dev"), cwd="unused",
     ) is None
     assert calls == [
-        ("rev-list", "--count", "tracked", "^head", "^refs/remotes/origin/main", "^refs/remotes/origin/dev"),
-        ("rev-list", "--count", "tracked", "^head", "^refs/remotes/origin/main", "^refs/remotes/origin/dev", "^created"),
+        (
+            "rev-list", "--count", "--end-of-options", "tracked", "^head",
+            "^refs/remotes/origin/main", "^refs/remotes/origin/dev", "--",
+        ),
+        (
+            "rev-list", "--count", "--end-of-options", "tracked", "^head",
+            "^refs/remotes/origin/main", "^refs/remotes/origin/dev", "^created", "--",
+        ),
     ]
 
 

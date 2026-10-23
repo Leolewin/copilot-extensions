@@ -2422,6 +2422,13 @@ agent-dispatch steer submit <id> --field decision=Proceed \
 # Inspect this request's acceptance, consumption and original wake independently:
 agent-dispatch steer receipt <id> <request-id>
 
+# Save or clear only the card and shared draft that were actually viewed:
+agent-dispatch card draft save <id> --field notes="Unsent notes" \
+  --expected-revision <steering_revision> \
+  --expected-draft-revision <card_draft_revision> --expected-queue-id <draft_scope.queue>
+agent-dispatch card draft clear <id> --expected-revision <steering_revision> \
+  --expected-draft-revision <card_draft_revision> --expected-queue-id <draft_scope.queue>
+
 # The resumed worker drains all answers and continues toward its goal:
 agent-dispatch steer take <id> --all        # -> {"steers": [{"fields": {...}, "sender": ...}]}
 ```
@@ -2451,6 +2458,38 @@ agent-dispatch steer take <id> --all        # -> {"steers": [{"fields": {...}, "
   endpoint. An old owner, or downgrade after the probe, fails explicitly without
   falling back to a legacy write. Direct/manual unguarded steering retains its
   existing advanced-guidance semantics.
+- **Guarded shared drafts.** Task reads and `card show` expose
+  `card_draft_revision`: an opaque revision, or the explicit `absent` token
+  when no draft exists. Save and Clear accept both `--expected-revision` and
+  `--expected-draft-revision`, or neither for legacy unguarded compatibility.
+  A guarded operation compares both inside the existing draft transaction,
+  before any mutation. A replaced card/owner or another client's Save/Reset
+  conflicts without changing drafts, task state, answers or wakes.
+  Every save has a fresh draft nonce, even for identical values/timestamps.
+  Guarded drafts additionally retain their original `steering_revision`;
+  legacy drafts remain readable but do not acquire invented card provenance.
+  SDK callers pass `expected_revision` and `expected_draft_revision` to
+  `save_card_draft`/`clear_card_draft`. Guarded calls require health capability
+  `card_draft_cas: 1` and use dedicated guarded routes; an old or downgraded
+  owner never receives a fallback unguarded write. An ambiguous response
+  requires a fresh read, not automatic Save/Clear replay or an assumption
+  that persistence failed.
+  Task reads, board rows and `card show` also expose `draft_scope`: the existing
+  durable queue identity, a hash of the installation root and the owning host.
+  `--expected-queue-id` (SDK `expected_queue_id`) adds a queue check before the
+  existing CAS. It requires `card_draft_scope: 1` and dedicated scoped routes,
+  so an older owner cannot silently ignore it. No identity store is added.
+  Native Tasks and Maintenance declare these scoped Save/Reset commands through
+  Manager's generic form contract. Shared drafts restore only for their original
+  card version; local recovery additionally binds provider, installation/queue,
+  machine, task, action/schema, card and observed draft revision. Reset clears
+  fields/local recovery only after acknowledgement; a conflict retains both.
+  Local shared-operation copies use immutable per-write records. A delayed
+  acknowledgement retires only its own copies; cleanup failures stay visible.
+  Unconfirmed copies never automatically override the owner draft: Restore
+  local explicitly copies the latest matching response without submitting.
+  Neither Save nor Reset submits answers or wakes a worker. Exact-original-request
+  restart/vanished-row recovery remains separate from draft persistence.
 - **`steer submit`** appends the operator's answer to the task's append-only steer
   inbox and clears `awaiting_steer`; it is **not** worker-owned (the operator, or a
   surface acting for them, answers). After persistence, the coordinator asks
