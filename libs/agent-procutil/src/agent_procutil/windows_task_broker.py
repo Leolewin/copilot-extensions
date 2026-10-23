@@ -29,6 +29,7 @@ CONFIG_ENV = "AGENT_PROCUTIL_WINDOWS_BROKER_CONFIG"
 OWNER_ENV = "AGENT_PROCUTIL_WINDOWS_BROKER_OWNER"
 _SCHEMA = "agent-procutil.windows-launch-broker"
 _NONCE = re.compile(r"[0-9a-f]{64}")
+_NATIVE_HRESULT = re.compile(r"broker-native-hresult:([0-9A-F]{8})")
 _ACTIVATION_PHASES = frozenset({
     "input", "input-read", "principal", "connect", "folder", "lookup", "validated",
     "run-requested", "run-returned", "engine-ready", "revalidated",
@@ -178,9 +179,14 @@ def task_operation(
         phase = _activation_phase(error.stderr)
         raise _refuse("task " + action + " timed out (phase=" + phase + ")") from None
     if result.returncode != 0:
+        codes = [
+            match.group(1) for line in result.stderr.splitlines()
+            if (match := _NATIVE_HRESULT.fullmatch(line)) is not None
+        ]
         reason = "\n".join(
             line for line in result.stderr.splitlines()
             if line not in {"broker-phase:" + phase for phase in _ACTIVATION_PHASES}
+            and _NATIVE_HRESULT.fullmatch(line) is None
         ).strip()
         allowed = {
             "broker-registration-owner-refused", "broker-registration-action-refused",
@@ -191,7 +197,10 @@ def task_operation(
         }
         reason = reason if reason in allowed else "scheduler-operation-failed"
         phase = _activation_phase(result.stderr)
-        raise _refuse("task " + action + " refused (" + reason + "; phase=" + phase + ")")
+        code = codes[-1] if codes else "unobserved"
+        raise _refuse(
+            "task " + action + " refused (" + reason + "; phase=" + phase + "; code=" + code + ")",
+        )
     try:
         value = json.loads(result.stdout)
     except (ValueError, TypeError):

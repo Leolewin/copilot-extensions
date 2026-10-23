@@ -17,6 +17,13 @@ function Write-ActivationPhase(
     if ($Action -eq 'activate') { [Console]::Error.WriteLine('broker-phase:' + $Phase) }
 }
 
+function Write-NativeFailureCode([Exception]$Failure) {
+    for ($depth = 0; $null -ne $Failure -and $depth -lt 8; $depth++) {
+        [Console]::Error.WriteLine('broker-native-hresult:' + $Failure.HResult.ToString('X8'))
+        $Failure = $Failure.InnerException
+    }
+}
+
 function Resolve-TaskPrincipalSid([string]$Principal) {
     if ($Principal -match '^S-1-') {
         return ([Security.Principal.SecurityIdentifier]::new($Principal)).Value
@@ -197,6 +204,7 @@ try {
     }
 } catch {
     $failure = $_.Exception.Message
+    Write-NativeFailureCode $_.Exception
     try {
         if ($null -ne $rollbackXml) {
             $null = $folder.RegisterTask(

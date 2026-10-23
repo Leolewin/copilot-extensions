@@ -193,6 +193,23 @@ def test_nonzero_adapter_failure_discloses_phase_without_native_exception_text(m
     assert "private-value" not in str(caught.value)
 
 
+@pytest.mark.parametrize("line,code", [
+    ("broker-native-hresult:80070005", "80070005"),
+    ("broker-native-hresult:private-value", "unobserved"),
+    ("broker-native-hresult:80070005 private-value", "unobserved"),
+])
+def test_native_error_code_is_fixed_width_not_arbitrary_text(monkeypatch, line, code):
+    monkeypatch.setattr(task, "os", SimpleNamespace(name="nt", environ={"SystemRoot": r"C:\Windows"}))
+    monkeypatch.setattr(task.Registration, "validate_files", lambda config: None)
+    monkeypatch.setattr(task, "run_caller_owned", Mock(return_value=subprocess.CompletedProcess(
+        ["safe-command"], 1, "", "broker-phase:run-requested\n" + line + "\n",
+    )))
+    with pytest.raises(DaemonSpawnError) as caught:
+        task.task_operation("activate", registration(), Deadline(30))
+    assert "code=" + code in str(caught.value)
+    assert "private-value" not in str(caught.value)
+
+
 def spawn_fixture(monkeypatch, activation=None):
     config = registration()
     monkeypatch.delenv("COPILOT_EXTENSIONS_TEST_CONTAINED", raising=False)
@@ -305,6 +322,20 @@ if ('FUNCTION_NAME') {
 def test_activation_phase_calls_match_the_fixed_diagnostic_allowlist():
     source = Path(task.__file__).with_name("windows_broker_task.ps1").read_text(encoding="utf-8")
     assert set(re.findall(r"Write-ActivationPhase '([^']+)'", source)) == task._ACTIVATION_PHASES
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Native Windows exception code redaction")
+def test_native_error_writer_reports_only_hresult_chain():
+    result = native_function(
+        "Write-NativeFailureCode",
+        r"""
+$inner = [Runtime.InteropServices.COMException]::new('private-value', -2147024891)
+Write-NativeFailureCode ([Exception]::new('private-value', $inner))
+""",
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == ""
+    assert result.stderr == "broker-native-hresult:80131500\nbroker-native-hresult:80070005\n"
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Native Windows COM VARIANT argument contract")

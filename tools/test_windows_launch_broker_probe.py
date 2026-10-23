@@ -51,6 +51,20 @@ def test_protocol_fixture_preserves_case_insensitive_windows_prerequisites(name)
     ) == {"GITHUB_ACTIONS": "true"}
 
 
+def test_protocol_caller_preserves_os_profile_context_but_never_arbitrary_credentials():
+    source = {
+        "USERPROFILE": r"C:\fixture-profile",
+        "LocalAppData": r"C:\fixture-profile\AppData\Local",
+        "ProgramFiles": r"C:\Program Files",
+        "GITHUB_TOKEN": "must-not-cross",
+        "UNRELATED_CREDENTIAL": "must-not-cross",
+    }
+    assert protocol_probe.fixture_environment(source, control=True) == {
+        key: value for key, value in source.items() if "must-not-cross" != value
+    }
+    assert protocol_probe.fixture_environment(source, control=False) == {}
+
+
 def test_probe_refuses_inspection_outside_authorized_ci(monkeypatch, tmp_path):
     monkeypatch.setattr(probe.sys, "argv", ["probe", "inspect", str(tmp_path), "a" * 32])
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
