@@ -245,3 +245,10 @@ restarted or updated to force acceptance. No productive rollout is performed.
   the Manager reference now states restart-safe standalone admission and
   executable equivalence. Graceful-cutover ownership and rollout remain
   unchanged; deferred native qualification remains with #7962.
+- Reconciled the latest contribution base, preserving the unrelated active
+  effort rows. Range comparison confirms unchanged executable repair patches.
+  The combined six-module launch, session and status portfolio passes all
+  491 cases in 112.33 seconds under the ordinary unchanged containment.
+  Touched-code lint, install closure, module-size and headless-launch checks
+  pass. All five review findings have concrete fix replies; fresh review and
+  required CI still gate the source merge.
