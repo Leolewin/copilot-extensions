@@ -71,6 +71,11 @@ dependencies during ordinary launch. Mux cutover uses that same constructed
 interpreter, not an old interpreter with the new source on `PYTHONPATH`.
 The PowerShell entry fails nonzero if that interpreter cannot start and
 preserves the actual exit status when it runs.
+CMD consumes the runtime invocation and its status-preserving return on the same
+line, so an update replacing the launcher during a session cannot make CMD resume
+at an obsolete byte offset. PowerShell post-exit finalization displays native
+diagnostics separately from its numeric result; successful cleanup text is not a
+failure, while a nonzero result or unavailable runtime still reports a warning.
 Mux routes and target readiness use the constructed slot's immutable generation,
 including repair/source qualifiers. Health preserves the semantic package
 `version` and separately reports `runtime_generation` from its own interpreter
@@ -110,6 +115,16 @@ The **One-line bootstrap** below remains the fresh-install entry, not a required
 manual migration step for an adopted Manager. Do not rewrite a deployed launcher,
 install application dependencies into ambient Python, or use update bypass flags
 to force recovery.
+
+Bootstrap-owned human progress goes to stderr with UTC correlation time and
+explicit running, warning or failed state. PowerShell uses its in-process
+monotonic stopwatch for elapsed time and writes text directly, avoiding duplicate
+information records in redirected encoded-command capture. Bash reports
+`elapsed unavailable` before a portable monotonic provider exists; it does not
+claim wall-clock differences are durations. These dependency-free lines do not
+load an installed runtime. Native prerequisite diagnostics, exceptions and the
+launched Manager's streams and exit status retain their existing ownership;
+this is not a claim that those separate producers are all framed.
 
 `doctor` also reports **plugin-catalog alignment**: whether the authored
 catalog (`data/plugins.toml`) still matches the discovered plugin membership
@@ -327,6 +342,54 @@ URLs still show the original ref, linking it only when it is already HTTP(S).
 Those inspections run in the background only after opening the detail card;
 ordinary row rendering never walks a claim graph or performs network reads.
 Descendant claims remain owned by their original worktrees.
+
+Interactive Picker startup first presents a pending project-binding view with
+Escape to cancel. Project-default discovery and engine `picker-bootstrap`
+resolution run after that view's first refresh, off the input thread. Operational
+actions are not available until the engine's project/cwd/live decisions are
+accepted. A failed binding stays visible until dismissal and returns failure;
+late results after cancellation cannot activate a project or start housekeeping.
+Explicit project names go to the engine without enumerating the full Manager
+project roster; implicit defaults still reject ambiguity and knowledge-only
+companions.
+
+Initial live rows come from one authoritative snapshot-plus-follow subscription,
+not a preceding cache-only one-shot process. Pivot discovery remains independent
+and remote loading remains lazy. There is no advisory initial-row result that
+can subsequently overwrite current rows. Optional bootstrap `project_config`
+fields (`config_dir`, `repo_dir`, `machine`) seed the Manager's config cache.
+Older engines retain one memoized fallback call per missing scalar, on setup
+workers. Bound scalars survive ordinary setup/reload file-cache invalidation;
+accepting a new project binding resets them. Environment-enabled mock operations
+still resolve implicit project selection and refuse ambiguity. This consumer
+support does not assert that every engine produces those optional fields.
+Binding replacement never waits for an older scalar read; late results stay in
+their original binding/epoch. Failed scalar lookups may retry after reload,
+without discarding accepted bootstrap values.
+An event-loop caller with an unprepared scalar receives a configuration-pending
+error instead of starting a process or waiting on a setup worker's scalar lock.
+Previously worker-prepared local fallbacks remain usable during reload, including
+configured local-machine aliases; workers retry failed fields and replace those
+snapshots when authoritative values recover.
+
+First pending refresh is not first current rows, and neither alone proves visible
+native input acknowledgement. Existing launch tracing records
+`picker_pending_binding_first_refresh` and `picker_config_scalar_fallback`;
+no new telemetry service or SDK is required. The explicitly selected native
+headless qualification uses real interpreter/engine processes and Textual
+rendering, but does not claim compositor visibility or installed-host acceptance:
+
+```powershell
+$env:WORKTREE_MANAGER_STARTUP_PROBE = "1"
+python tools/run-plugin-tests.py worktree-manager --test-file tests/production_picker/test_picker_startup_native.py --test-timeout 90 --timeout 600
+```
+
+It samples cold/warm process state at 1, 100 and 1,000 rows, with and without
+optional scalars, checks input acknowledgement while bootstrap is gated for two
+seconds, and verifies a rendered current row and one held subscription. Host
+startup latency is measured separately from that controlled delay; the
+under-two-second vision budget remains an independent qualification, not an
+assertion inferred from these protocol checks.
 
 Held-feed startup uses the source's existing bounded process/SSH budget
 (20 seconds by default). Once an initial snapshot or update starts, the
