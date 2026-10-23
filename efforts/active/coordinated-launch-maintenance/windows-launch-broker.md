@@ -145,7 +145,7 @@ CI/promotion enforcement remain the separate parent gate.
 - [ ] Unit tests cover wrong owner/instance, stale registration, malformed and
   over-budget input, missing prerequisites, failed stage/adoption/resume,
   disconnect/ambiguous acknowledgement and retryable cleanup failure.
-- [ ] A native negative fixture puts the candidate and caller in different
+- [x] A native negative fixture puts the candidate and caller in different
   immediate Jobs under one shared outer cleanup Job. It must not receive a
   durable-success result. The control dies when that outer Job closes.
 - [ ] An approved isolated Windows lane activates the actual owned broker,

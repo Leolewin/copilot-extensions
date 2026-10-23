@@ -496,3 +496,48 @@ repository history.
   Positive controls now close actual caller Job handles rather than use
   termination as a proxy. Source/admission tests passed 15 cases; the new
   topology has not yet run on the disposable Windows lane.
+
+### 2026-10-22 - Shared-ancestor negative proof and bounded activation evidence
+
+- Exact-head disposable run
+  [39872678419](https://github.com/ThomasMichon/copilot-extensions/actions/runs/39872678419)
+  at `72f65f3ed78a78b162dbb34f577fce279470c0d6` established different
+  immediate Jobs under one shared outer cleanup Job. The canonical native child
+  offer refused durable success, and closing the actual outer Job handle killed
+  the controls. This closes that negative-topology item only.
+- The production activation still completed no resident cycles. The adapter
+  returned a nonzero native result; the former timeout-only diagnostics did not
+  preserve its last fixed phase. Cleanup was confirmed. Neither this result nor
+  the preliminary capability probe qualifies the production handoff.
+- Added bounded raw timeout evidence after confirmed retirement and reader
+  joins, plus activation-only, fixed allowlisted phase diagnostics. Native
+  errors never disclose request, task XML or arbitrary COM exception text.
+  Activation deadlines remain unchanged. The composed contained regression
+  suite passed 113 tests with three explicit platform skips; the refined
+  nonzero-refusal adapter suite passed 35 tests. Lint and native parsing passed.
+- Published the nonzero-refusal phase correction on the held repair draft and
+  dispatched exact source `616d9e3f7dadada8cede035ede12040dcb29c427` in
+  [39873481651](https://github.com/ThomasMichon/copilot-extensions/actions/runs/39873481651).
+  It timed out in the input-read/parsing stage before scheduler connection;
+  cleanup and the negative topology passed again, but no resident cycle did.
+- Added a native nested-live-parent stdin regression using a synthetic
+  PowerShell script, without a scheduler connection. Script-file JSON input
+  reached EOF locally while the outer caller's input pipe remained open. That
+  narrows the hypothesis but does not explain the CI-only wait. The fixture and
+  refined input subphase passed 36 contained cases.
+- Published exact source `81f10c880565ad157008939767f687223ccf75f3` and
+  dispatched
+  [39874898967](https://github.com/ThomasMichon/copilot-extensions/actions/runs/39874898967)
+  to distinguish input EOF from JSON parsing in the actual disposable caller.
+  That run reached `run-requested` and refused in the actual `RunEx` call;
+  neither stdin nor scheduler connection explains that particular refusal.
+- The documented native `RunEx` contract accepts a BSTR or BSTR array, not an
+  untyped variant array. A regression evaluated the actual source expression
+  against native VARIANT marshalling without connecting to Task Scheduler.
+  It rejected the original object array. Explicit `string[]` marshalling then
+  passed the native `VT_ARRAY | VT_BSTR` check and all 36 adapter cases.
+- Published the argument-type correction at
+  `5b749a980749ef41dc3934237792362ec3b41b0e` and dispatched
+  [39875766662](https://github.com/ThomasMichon/copilot-extensions/actions/runs/39875766662).
+  Continue from that exact native result before normal-launch integration;
+  no shared-host adoption or deployment is authorized.
