@@ -49,6 +49,10 @@ New native launches explicitly select the execution directory, including when
 resuming a conversation originally created in an anchor or another directory.
 A conflicting Copilot `-C` override is refused; a custom launcher's prefix
 options (such as PowerShell's `-C` command abbreviation) remain unchanged.
+Direct PowerShell command-string launches encode the final native arguments
+as quoted PowerShell literals, preserving spaces, apostrophes and literal
+variable syntax through the command-source boundary. Opaque compound commands
+require a launcher script.
 Bash command-string templates using `copilot` or `exec copilot` are normalized
 to forward their arguments explicitly; existing direct `copilot "$@"` forms
 retain their command-name slot. Compound command strings require a launcher

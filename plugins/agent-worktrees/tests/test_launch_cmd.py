@@ -188,9 +188,10 @@ def test_custom_launch_preserves_shell_prefix_and_binds_copilot_directory(prefix
     args = _args(["--resume", "conversation", "-C", "/selected worktree"])
     args.recovery = recovery
     command = _inner_command(m._build_launch_cmd(config, args, "/selected worktree"))
-    assert command[:len(prefix)] == prefix
-    assert command[len(prefix):len(prefix) + 2] == ["--resume", "conversation"]
-    assert command.count("-C=/selected worktree") == 1
+    assert command[:-1] == prefix[:-1]
+    assert command[-1].startswith("& '" + prefix[-1] + "' ")
+    assert "'--resume' 'conversation'" in command[-1]
+    assert command[-1].count("'-C=/selected worktree'") == 1
     with pytest.raises(m.LaunchPreflightError, match="directory"):
         m._build_launch_cmd(config, _args(["-C", "/foreign"]), "/selected worktree")
 
@@ -199,6 +200,14 @@ def test_custom_launch_embedded_copilot_directory_cannot_override_workspace():
     config = _config({"linux": ["pwsh.exe", "-C", "copilot", "-C", "/foreign"]})
     with pytest.raises(m.LaunchPreflightError, match="directory"):
         m._build_launch_cmd(config, _args([]), "/selected worktree")
+
+
+def test_opaque_powershell_command_requires_explicit_launcher_script():
+    with pytest.raises(m.LaunchPreflightError, match="launcher script"):
+        m._build_launch_cmd(
+            _config({"linux": ["pwsh", "-Command", "copilot; Write-Host done"]}),
+            _args([]), "/selected worktree",
+        )
 
 
 def test_unknown_launcher_prefix_is_not_parsed_as_copilot_arguments():
@@ -1307,33 +1316,53 @@ def test_default_setup_ps1_double_dash_copilot_args_not_mis_bound_positionally(
 
 
 @pytest.mark.skipif(os.name != "nt", reason="native PowerShell-to-command argument forwarding")
-def test_custom_powershell_command_forwards_selected_directory(tmp_path):
+@pytest.mark.parametrize("command_flag", ["-C", "-Command"])
+@pytest.mark.parametrize("directory_name", ["selected worktree", "worktree's $(literal)"])
+def test_custom_powershell_command_forwards_selected_directory(
+    tmp_path, monkeypatch, command_flag, directory_name,
+):
     from agent_procutil import no_window_kwargs
+    from agent_worktrees import installer
 
     shell = shutil.which("pwsh")
     if not shell:
         pytest.skip("pwsh is unavailable")
-    selected = tmp_path / "selected worktree"
+    selected = tmp_path / directory_name
     selected.mkdir()
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    _stage_launch_command(scripts)
+    monkeypatch.setattr(installer, "install_dir", lambda: tmp_path)
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    marker = tmp_path / "native-argv.txt"
-    (bin_dir / "copilot.cmd").write_text(
-        '@echo off\r\n> "%NATIVE_ARGV_MARKER%" echo %*\r\n', encoding="utf-8",
+    marker = tmp_path / "native-argv.json"
+    capture = tmp_path / "capture.py"
+    capture.write_text(
+        "import json, os, sys\n"
+        "from pathlib import Path\n"
+        "Path(os.environ['NATIVE_ARGV_MARKER']).write_text(json.dumps(sys.argv[1:]))\n",
+        encoding="utf-8",
     )
-    command = _inner_command(m._build_launch_cmd(
-        _config({"linux": [shell, "-NoProfile", "-C", "copilot"]}),
-        _args(["--resume=synthetic-anchor-origin"]), str(selected),
-    ))
+    (bin_dir / "copilot.cmd").write_text(
+        f'@echo off\r\n@"{sys.executable}" "{capture}" %*\r\n', encoding="utf-8",
+    )
+    command = m._build_launch_cmd(
+        _config({"linux": [shell, "-NoProfile", command_flag, "copilot"]}),
+        _args(["--resume=synthetic-anchor-origin", "--prompt", "literal '$value'"]),
+        str(selected),
+    )
+    command[0] = shell
     completed = subprocess.run(
         command, cwd=selected,
         env={**os.environ, "PATH": str(bin_dir), "NATIVE_ARGV_MARKER": str(marker)},
         capture_output=True, text=True, timeout=20, **no_window_kwargs(),
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
-    received = marker.read_text(encoding="utf-8")
-    assert f"-C={selected}" in received
-    assert "--resume=synthetic-anchor-origin" in received
+    received = json.loads(marker.read_text(encoding="utf-8"))
+    assert received == [
+        "--resume=synthetic-anchor-origin", "--prompt", "literal '$value'",
+        f"-C={selected}", "--allow-all", "--experimental",
+    ]
 
 
 @pytest.mark.parametrize("command_name", [None, "--", "configured-command-name"])
@@ -1402,10 +1431,17 @@ def test_pinned_resume_directory_survives_normalized_powershell_launch(tmp_path,
     )
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
+    capture = tmp_path / "capture.py"
+    capture.write_text(
+        "import json, os, sys\n"
+        "from pathlib import Path\n"
+        "Path(os.environ['NATIVE_ARGV_MARKER']).write_text(json.dumps(sys.argv[1:]))\n",
+        encoding="utf-8",
+    )
     (bin_dir / "copilot.cmd").write_text(
         '@echo off\r\n'
-        '> "%NATIVE_ARGV_MARKER%" echo %*\r\n'
-        '> "%NATIVE_CWD_MARKER%" echo %CD%\r\n',
+        '> "%NATIVE_CWD_MARKER%" echo %CD%\r\n'
+        f'@"{sys.executable}" "{capture}" %*\r\n',
         encoding="utf-8",
     )
     argv_marker = tmp_path / "native-argv.txt"
@@ -1429,9 +1465,10 @@ def test_pinned_resume_directory_survives_normalized_powershell_launch(tmp_path,
         **no_window_kwargs(),
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
-    received = argv_marker.read_text(encoding="utf-8")
+    received = json.loads(argv_marker.read_text(encoding="utf-8"))
     assert "-ExecutionDirectory" not in received
-    assert f'-C "{selected}"' in received
+    assert received.count("-C") == 1
+    assert received[received.index("-C") + 1] == str(selected)
     assert "--resume=synthetic-anchor-origin" in received
     assert Path(cwd_marker.read_text(encoding="utf-8").strip()) == selected
 

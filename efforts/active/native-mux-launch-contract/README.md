@@ -355,3 +355,21 @@ restarted or updated to force acceptance. No productive rollout is performed.
   37.76 seconds, within the original containment. The backed base rebase
   preserved peers' archived effort rows; range comparison showed unchanged
   executable repair commits before this final identity correction.
+
+### 2026-10-23 - PowerShell command-source argument boundaries
+
+- The next review correctly distinguished a single constructed argv element
+  from a PowerShell `-Command` source boundary. Direct command templates now
+  serialize the fully assembled native invocation as PowerShell literals
+  after preference/permission arguments are appended. Spaces, apostrophes
+  and literal variable syntax cannot split or expand the selected directory
+  or forwarded arguments. Opaque compound commands require a launcher script;
+  normalized setup and ACP retain their existing owners.
+- Replaced the lossy `echo %*` proxy with a native Python child that records
+  its individual argv elements as JSON. Four fail-first controls reproduced
+  the defect. The actual staged launch wrapper and both `-C`/`-Command` forms
+  now preserve exact directory, resume and prompt arguments, including paths
+  with spaces, apostrophes and literal substitution syntax.
+- The normalized PowerShell fixture now uses the same exact-child-argv proof
+  while retaining its actual child-directory assertion. The complete launch
+  portfolio passes 111 cases in 31.54 seconds, with unchanged test limits.

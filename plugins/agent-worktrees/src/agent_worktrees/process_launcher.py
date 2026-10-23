@@ -102,6 +102,25 @@ def bind_execution_directory(command, work_dir: str, error_type, *, passthrough_
     return [*result, f"-C={work_dir}"]
 
 
+def quote_powershell_command(command, error_type):
+    if not command or PureWindowsPath(command[0]).stem.casefold() not in {"pwsh", "powershell"}:
+        return command
+    for index, arg in enumerate(command[1:], 1):
+        if arg.casefold() == "-file":
+            return command
+        if arg.casefold() not in {"-c", "-command"}:
+            continue
+        target = index + 1
+        if target >= len(command) or PureWindowsPath(command[target]).stem.casefold() != "copilot":
+            raise error_type(
+                "A PowerShell command-string launch must directly invoke Copilot; "
+                "use a launcher script for a compound command"
+            )
+        literals = ["'" + value.replace("'", "''") + "'" for value in command[target:]]
+        return [*command[:target], "& " + " ".join(literals)]
+    return command
+
+
 def apply_process_launcher(command, args, error_type):
     launcher = getattr(args, "copilot_process_launcher", None)
     if not launcher:

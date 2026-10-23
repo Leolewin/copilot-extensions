@@ -115,7 +115,7 @@ from . import services as _svc
 from . import session_context as session_context_mod  # noqa: F401 -- compatibility re-export
 from . import state_root as state_root_mod
 from .copilot_launch_prefs import resolve_launch_pref_flags
-from .process_launcher import apply_process_launcher, bind_execution_directory
+from .process_launcher import apply_process_launcher, bind_execution_directory, quote_powershell_command
 from .update_stage import cmd_stage_update as cmd_stage_update, discover_plugin_dir as _discover_plugin_dir
 # front_door_cli's own names are re-exported eagerly (not deferred to
 # _load_full_command_surface() below) because main() calls several of them
@@ -2227,7 +2227,10 @@ def _build_launch_cmd(
     if recovery:
         prefix.append("--recovery")
     prefix.append("--")
-    return prefix + apply_process_launcher(cmd, args, LaunchPreflightError)
+    cmd = apply_process_launcher(cmd, args, LaunchPreflightError)
+    if not is_acp:
+        cmd = quote_powershell_command(cmd, LaunchPreflightError)
+    return prefix + cmd
 
 
 def _emit_parent_context_hint(record, *, to_stderr: bool = False) -> None:
