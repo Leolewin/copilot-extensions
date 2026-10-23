@@ -32,10 +32,19 @@ class SteeringClientMixin:
             )
         )
 
-    def save_card_draft(self, task_id: str, *, fields: dict) -> dict:
+    def save_card_draft(
+        self, task_id: str, *, fields: dict, expected_revision: str | None = None,
+        expected_draft_revision: str | None = None,
+        expected_queue_id: str | None = None,
+    ) -> dict:
         """Persist an operator's not-yet-submitted draft answer. Never touches
         ``awaiting_steer``/status -- the task stays blocked exactly as before,
         durably visible from any surface/machine via ``get``/``card show``."""
+        if any(v is not None for v in (expected_revision, expected_draft_revision, expected_queue_id)):
+            return self._guarded_card_draft(
+                task_id, fields, expected_revision, expected_draft_revision,
+                clear=False, expected_queue_id=expected_queue_id,
+            )
         return self._unwrap(
             self._http.post(
                 f"/tasks/{task_id}/card-draft",
@@ -43,9 +52,72 @@ class SteeringClientMixin:
             )
         )
 
-    def clear_card_draft(self, task_id: str) -> dict:
+    def clear_card_draft(
+        self, task_id: str, *, expected_revision: str | None = None,
+        expected_draft_revision: str | None = None,
+        expected_queue_id: str | None = None,
+    ) -> dict:
         """Clear a task's saved draft. Never touches ``awaiting_steer``/status."""
+        if any(v is not None for v in (expected_revision, expected_draft_revision, expected_queue_id)):
+            return self._guarded_card_draft(
+                task_id, {}, expected_revision, expected_draft_revision,
+                clear=True, expected_queue_id=expected_queue_id,
+            )
         return self._unwrap(self._http.delete(f"/tasks/{task_id}/card-draft"))
+
+    def _guarded_card_draft(
+        self, task_id: str, fields: dict, expected_revision: str | None,
+        expected_draft_revision: str | None, *, clear: bool, expected_queue_id: str | None = None,
+    ) -> dict:
+        if not expected_revision or not expected_draft_revision:
+            raise ValueError("both expected card and draft revisions are required")
+        health = self.health()
+        version = health.get("card_draft_cas")
+        if type(version) is not int or version < 1:
+            raise DispatchUpgradeRequired("coordinator lacks guarded card drafts")
+        operation = "guarded-clear" if clear else "guarded"
+        scope_body = {}
+        if expected_queue_id is not None:
+            version = health.get("card_draft_scope")
+            if not expected_queue_id or type(version) is not int or version < 1:
+                raise DispatchUpgradeRequired("coordinator lacks queue-bound card drafts")
+            operation = "scoped-clear" if clear else "scoped"
+            scope_body = {"expected_queue_id": expected_queue_id}
+        try:
+            result = self._unwrap(self._http.post(
+                f"/tasks/{task_id}/card-draft/{operation}",
+                json={
+                    "fields": fields, "expected_revision": expected_revision,
+                    "expected_draft_revision": expected_draft_revision,
+                    **scope_body,
+                },
+            ))
+        except DispatchError as exc:
+            if exc.status_code in (404, 405) and exc.detail in ("Not Found", "Method Not Allowed"):
+                raise DispatchUpgradeRequired("coordinator lacks guarded card drafts") from exc
+            raise
+        if (
+            not isinstance(result, dict) or result.get("id") != task_id
+            or result.get("steering_revision") != expected_revision
+            or not isinstance(result.get("card_draft_revision"), str)
+            or not result["card_draft_revision"]
+            or "card_draft" not in result
+            or (expected_queue_id is not None and (
+                not isinstance(result.get("draft_scope"), dict)
+                or result["draft_scope"].get("queue") != expected_queue_id
+            ))
+            or (clear and (
+                result["card_draft"] is not None or result["card_draft_revision"] != "absent"
+            ))
+            or (not clear and (
+                not isinstance(result.get("card_draft"), dict)
+                or result["card_draft_revision"] in ("absent", expected_draft_revision)
+                or result["card_draft"].get("fields") != fields
+                or result["card_draft"].get("steering_revision") != expected_revision
+            ))
+        ):
+            raise DispatchError(502, "no verifiable guarded draft acknowledgement; refresh before retrying")
+        return result
 
     def _coordinator_supports_steer_idempotency_key(self) -> bool:
         """Whether this coordinator's ``/health`` advertises that it

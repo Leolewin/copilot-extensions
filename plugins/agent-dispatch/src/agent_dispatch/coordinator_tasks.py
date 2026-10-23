@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import platform
 from collections.abc import Callable
 from dataclasses import asdict
 import uuid
@@ -18,6 +20,8 @@ from .coordinator_task_models import (
     ActivityBody,
     CardBody,
     CardDraftBody,
+    GuardedCardDraftBody,
+    ScopedCardDraftBody,
     ClaimBody,
     CompleteBody,
     ConfirmBody,
@@ -65,8 +69,20 @@ from .steering import SteeringError, steer_request_fingerprint, steer_wake_messa
 _NO_TELEMETRY_EVENT_TYPES = frozenset({"task.heartbeat", "task.activity_updated"})
 
 
+def _draft_scope(queue: TaskQueue) -> dict:
+    from .install_paths import install_dir, normalized_path
+    return {
+        "queue": queue.run_waiter_coordinator_id(),
+        "installation": hashlib.sha256(normalized_path(install_dir()).encode()).hexdigest(),
+        "machine": platform.node().casefold(),
+    }
+
+
 def _task_dict(task: Task) -> dict:
-    return {**asdict(task), "steering_revision": task.steering_revision}
+    return {
+        **asdict(task), "steering_revision": task.steering_revision,
+        "card_draft_revision": task.card_draft_revision,
+    }
 
 
 def _run_waiter_summary(queue: TaskQueue, task_id: str) -> dict | None:
@@ -85,6 +101,7 @@ def _run_waiter_summary(queue: TaskQueue, task_id: str) -> dict | None:
 
 def _task_with_spawn_dict(queue: TaskQueue, task: Task) -> dict:
     result = _task_dict(task)
+    result["draft_scope"] = _draft_scope(queue)
     latest = queue.latest_reservation(task.id)
     if latest is not None:
         result["spawn_reservation"] = asdict(latest)
@@ -94,8 +111,10 @@ def _task_with_spawn_dict(queue: TaskQueue, task: Task) -> dict:
     return result
 
 
-def _bulk_task_dict(task: Task) -> dict:
+def _bulk_task_dict(task: Task, draft_scope: dict | None = None) -> dict:
     result = _task_dict(task)
+    if draft_scope is not None:
+        result["draft_scope"] = draft_scope
     result.pop("result")
     return result
 
@@ -126,6 +145,10 @@ def register_task_routes(
         if task is None:
             raise HTTPException(status_code=404, detail="no such task")
         return task
+
+    def _bulk_tasks(tasks) -> list[dict]:
+        scope = _draft_scope(queue)
+        return [_bulk_task_dict(task, scope) for task in tasks]
 
     def _resolve_task_authority(
         request: Request,
@@ -328,9 +351,9 @@ def register_task_routes(
             return [] if task is None else [_task_with_spawn_dict(queue, task)]
         limit = 200 if limit is None else limit
         if sweep:
-            return [_bulk_task_dict(t) for t in queue.sweep(repo=repo, limit=limit, category=category)]
+            return _bulk_tasks(queue.sweep(repo=repo, limit=limit, category=category))
         if q is not None:
-            return [_bulk_task_dict(t) for t in queue.find(q, repo=repo, limit=limit, category=category)]
+            return _bulk_tasks(queue.find(q, repo=repo, limit=limit, category=category))
         status_filter: str | list[str] | None = None
         if status is not None:
             parts = [s.strip() for s in status.split(",") if s.strip()]
@@ -348,7 +371,7 @@ def register_task_routes(
             category=category,
             limit=limit,
         )
-        return [_bulk_task_dict(t) for t in tasks]
+        return _bulk_tasks(tasks)
 
     @app.get("/run-waiters")
     def list_run_waiters() -> dict[str, dict]:
@@ -366,7 +389,7 @@ def register_task_routes(
     @app.get("/tasks/mine")
     def mine(machine: str, worktree: str, repo: str | None = None) -> dict:
         result = queue.mine(machine, worktree, repo=repo)
-        return {k: [_bulk_task_dict(t) for t in v] for k, v in result.items()}
+        return {k: _bulk_tasks(v) for k, v in result.items()}
 
     @app.get("/tasks/{task_id}")
     def get_task(task_id: str, native_restart_policy: bool = False) -> dict:
@@ -857,6 +880,42 @@ def register_task_routes(
             lambda: queue.clear_card_draft(task_id),
             "task.card_draft_cleared",
         )
+
+    @app.post("/tasks/{task_id}/card-draft/guarded")
+    def save_guarded_card_draft(task_id: str, body: GuardedCardDraftBody) -> dict:
+        return _guard(
+            lambda: queue.save_card_draft(
+                task_id, fields=body.fields, expected_revision=body.expected_revision,
+                expected_draft_revision=body.expected_draft_revision,
+            ),
+            "task.card_draft",
+        )
+
+    @app.post("/tasks/{task_id}/card-draft/guarded-clear")
+    def clear_guarded_card_draft(task_id: str, body: GuardedCardDraftBody) -> dict:
+        return _guard(
+            lambda: queue.clear_card_draft(
+                task_id, expected_revision=body.expected_revision,
+                expected_draft_revision=body.expected_draft_revision,
+            ),
+            "task.card_draft_cleared",
+        )
+
+    def _scoped_draft(task_id: str, body: ScopedCardDraftBody, *, clear: bool) -> dict:
+        scope = _draft_scope(queue)
+        if body.expected_queue_id != scope["queue"]:
+            raise HTTPException(status_code=409, detail="draft belongs to another queue; refresh before retrying")
+        result = (clear_guarded_card_draft if clear else save_guarded_card_draft)(task_id, body)
+        result["draft_scope"] = scope
+        return result
+
+    @app.post("/tasks/{task_id}/card-draft/scoped")
+    def save_scoped_card_draft(task_id: str, body: ScopedCardDraftBody) -> dict:
+        return _scoped_draft(task_id, body, clear=False)
+
+    @app.post("/tasks/{task_id}/card-draft/scoped-clear")
+    def clear_scoped_card_draft(task_id: str, body: ScopedCardDraftBody) -> dict:
+        return _scoped_draft(task_id, body, clear=True)
 
     @app.post("/tasks/{task_id}/steer/take")
     def steer_take(task_id: str, body: SteerTakeBody) -> dict:

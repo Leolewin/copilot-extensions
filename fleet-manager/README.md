@@ -11,8 +11,9 @@ no production Gateway/index offload or managed install/update/uninstall,
 telemetry sink or fleet resource mutation is claimed.
 Broader fleet delivery remains the [canonical effort](../efforts/active/linux-role-fleet/README.md).
 
-The opt-in [service Gateway SDK](docs/gateway-service-profile.md) accepts a
-code-registered provider-neutral public-trust adapter. Vendor implementation,
+The opt-in [service Gateway SDK](docs/gateway-service-profile.md) includes a
+finite authenticated caller and accepts a code-registered provider-neutral
+public-trust adapter. Vendor implementation,
 login and trust acquisition stay downstream; the existing `jwt-pop-v1` request
 verifier and ordinary CLI/default identity behavior remain unchanged.
 
@@ -178,6 +179,12 @@ snapshot to exact observation branches or existing operation-intent grants.
 Finite internal permits revalidate current policy before lookup/effect/emit;
 they are not serialized backend credentials. The library does not authenticate
 its snapshot source, wire a resident consumer or implement provider renewal.
+
+The explicit [scoped point-reader](docs/scoped-observation-reader.md) composes
+that admission with the local observation store under a bounded shared owner
+fence. It projects immutable selected-field results and consumes terminal
+permits at a fresh completion checkpoint, without exposing global cursors or
+adding a serving route, provider, enrollment or deployment.
 
 The optional stdlib-only [reverse-listener coordinator](docs/reverse-listener-reservations.md)
 binds a finite supplied-owner admission to retained candidate custody and

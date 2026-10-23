@@ -4,7 +4,7 @@
 - **Repo:** copilot-extensions
 - **Branch(es):** Independent, serial per-slice PRs against `dev`
 - **Created:** 2026-10-11
-- **Status:** Active; identity/admission prerequisites merged; provider/enrollment/integration/lifecycle open
+- **Status:** Active; identity/admission/reader prerequisites merged; provider/enrollment/integration/lifecycle open
 - **Vision:** machine-fleet `unified-coordination-product`; agent-fabric and plugin-services explicit integrated-product profile
 - **Umbrella issue:** #6236
 - **Sub-issues:** #6240 release/lifecycle; #6241 command/receipt contracts;
@@ -208,6 +208,18 @@ This authorizes driving the reviewed implementation, beginning with an isolated
 verifier prerequisite. It does not select live trust roots, enroll principals,
 transfer another campaign's active source ownership or authorize deployment.
 
+The operator later directed verbatim:
+
+> Check status here; resume. Avoid coordinating with any other agent and drive the work that you own explicitly
+
+Asked to assign an isolated, transport-neutral scoped observation-reader adapter
+composing this effort's admission library and store, without changing resident
+consumers, providers, enrollment, deployment, leases or other owners' files, the
+operator selected `isolated-scoped-reader`. The
+[bounded reader contract](scoped-observation-reader.md) is the
+**agent-recommended implementation elaboration**. This explicit assignment does
+not waive the separate resident integration or live adoption gates.
+
 ## Plan
 
 All detailed slices are **agent-recommended** and remain subject to review.
@@ -318,6 +330,11 @@ All detailed slices are **agent-recommended** and remain subject to review.
 ### Phase 2b - Central push-backed current state
 - [x] Review the [backing-store amendment](central-state-backing-store.md) under
   existing #5862, preserving #3761 origin authority and #352 client/mux ownership.
+- [x] Review the explicitly assigned
+  [isolated scoped point-reader contract](scoped-observation-reader.md) (#8041).
+- [x] Land and validate the explicitly assigned
+  [isolated scoped point-reader](scoped-observation-reader.md), composing only
+  owned admission/storage libraries without wiring a resident consumer (#8052).
 - [ ] Agree authenticated origin/push, current-projection, persistence and
   query/subscription interfaces with the retained owners before runtime edits.
   The subsequent operator approval permits only an isolated transport-neutral
@@ -399,6 +416,67 @@ All entries are **agent-recommended implementation gates**, not completed tests.
 [Architecture and migration contract](architecture.md).
 
 ## Journal
+
+### 2026-10-22 - Isolated scoped-reader prerequisite merged
+
+- #8052 actually merged at `715709202b0f815f873236663a945865993da753`,
+  `2026-10-23T03:04:29Z`, from exact head `e1b3703154`. The current-head
+  Copilot review `5623404449` approved with no open issues, both review
+  threads were resolved, and all required checks passed before managed merge.
+- The isolated implementation and its bounded contract are complete. Native
+  Windows contained validation passes 123 owned reader/admission/store cases
+  in 48.21 seconds under the unchanged 120-second bound. The separate-process
+  mixed-caller proof includes an inverted-lock negative control. Required
+  hosted unit/guard CI is not represented as full native Fleet integration.
+- Reconciled actual terminal PR tracking and retained a source backup. The
+  original aggregate patch exactly matches the squash merge; pull-forward
+  preserves an unrelated upstream service-Gateway README change. No source,
+  claims or accepted responsibilities were discarded or worktrees finalized.
+- This closes only the explicitly assigned local composition prerequisite.
+  Resident consumers, authenticated snapshot/provider provenance, durable
+  shared epochs, wire-emission fencing, enrollment and deployment remain
+  outside the assignment. The full parent stays Active with every broader
+  Plan and Validation Plan gate intact. No other-agent coordination or
+  background monitor was started.
+
+### 2026-10-22 - Explicitly assigned local scoped-reader implementation
+
+- Resumed the original clean worktree and synchronized current reviewed source.
+  The operator explicitly assigned `isolated-scoped-reader` and prohibited
+  other-agent coordination. No agent was contacted or delegated implementation.
+  Existing resident/provider/lifecycle ownership and live approval gates remain.
+- Reviewed contract #8041 actually merged at
+  `748f12a2dd1844517dc68f1ae0eb889f52283dd4`,
+  `2026-10-23T01:55:22Z`, before runtime edits. A first publication attempt
+  timed out behind the installation-wide publication lock; normal guarded
+  retry succeeded without changing or stealing that lock.
+- Implemented one explicit point-read composition with a mandatory bounded
+  shared owner fence, authorization before lookup, exact store-authority binding,
+  immutable selected-field results and terminal fresh permit completion.
+  The trusted store still validates complete rows internally; no selected-field
+  SQL hydration, wire-emission fence or authenticated provider is claimed.
+- The complete owned reader/admission/store selection passes 121 cases in
+  62.59 seconds under its unchanged 120-second containment limit. This includes
+  real JOSE evidence, SQLite, native lock contention/revocation and a fresh
+  independent consumer using production modules only. Corrected an initial
+  reserved pytest parameter collection error without weakening any assertion.
+  Touched F/E9 lint, the 13-plugin install contract and whitespace checks pass.
+- Documentation explains point-only capability, explicit entity-local metadata,
+  no global cursor or grant output, final-check withholding, participating-writer
+  requirements and terminal capacity release. Added the canonical standalone
+  consumer changefile without editing a version or dependency declaration.
+- Unit and simple real-process integration tiers were exercised. No installer
+  or first-machine behavior changed, so no new installer clean-room is claimed.
+  Live provider/serving validation remains outside this explicitly isolated
+  assignment. Current-head platform review and required hosted CI are still
+  required before implementation merge; the full parent remains Active.
+- The implementation review identified an opposing owner-fence/authority-lock
+  order for mixed direct and reader calls. Bound the exact shared reentrant
+  fence to the authority so every admission/checkpoint acquires it first;
+  a reader refuses an unbound or differently fenced authority. A separate
+  process proves both successful mixed calls and reproduction with the
+  deliberately inverted legacy ordering. The full owned selection then passes
+  123 cases in 48.21 seconds under the unchanged 120-second limit.
 
 ### 2026-10-16 - Immutable-release index fixture repair prepared
 - Normal promotion #6938 merged `6b2fa0ac2887a8fda669dfb8356e5c6083f6729d`

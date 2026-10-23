@@ -329,6 +329,29 @@ authorizes critical main-path acceptance or a bounded administrative change.
   Actual hosted PR and natural push each execute the intended checker once,
   covering both contracts and all 456 fixtures. This removes one repeated
   invocation per PR, not a workflow run or runner allocation.
+- [x] Land the bounded history-free source-unit checkout reduction (#8001),
+  preserving the pinned Dev snapshot, all 877 admitted cases, contextual
+  coverage and every ancestry-dependent release checkout. A genuinely shallow
+  fresh-Dev fixture qualifies the actual 94-file source closure; source review
+  does not migrate the independently preserved Main controller or establish
+  a hosted promotion critical-path saving. Qualified control adoption remains
+  separate.
+- [x] Land source job admission that omits the owner reminder's existing no-op
+  before runner allocation (#8029). All reminder JavaScript, independent Main
+  admission/identifier jobs and synchronize behavior remain unchanged.
+  Native/Linux focused and actual consumer contracts pass, including recorded
+  Dev selection with preserved legacy Main bytes. Qualified Main adoption and
+  natural no-runner observation remain separate; no live allocation saving is
+  claimed from the Dev merge.
+- [x] Land the bounded cleanup-publication guard (#8070): completely page open Dev
+  metadata before any new commit/push and fail visibly on an outstanding
+  same-repository, owner-authored generated cleanup PR. Preserve its existing
+  owner, merge gates, cadence and wait budget. Qualified Main adoption and
+  natural duplicate-prevention acceptance remain separate.
+- [x] Land bounded periodic selection/preparation-failure reporting (#8078) using the
+  existing portfolio tracker and owner. Genuine Dev provenance must survive
+  missing selection outputs; other manual refs remain inspection-only, and
+  preparation failure cannot imply executed Linux or Windows coverage.
 - [ ] Remove redundant release-shaped PR and main-push validation only where
   existing trusted gates and exact-SHA release evidence cover the removed work;
   first prove no generated-output coverage or required context is lost.
@@ -462,6 +485,11 @@ authorizes critical main-path acceptance or a bounded administrative change.
   Actual hosted source CI executes all 869 admitted cases in 12.971 seconds.
   Real process settlement, native Windows, full census and every-release
   acceptance remain separate.
+- [ ] Land the thirteen original remote-shell callable cases through five exact
+  function objects and unchanged parameterization, preserving all prior packet
+  identities/hashes, actual call coverage and the 300-second budget. Keep the
+  original constant-only vocabulary assertion as an explicit unmapped policy
+  residual; bounded source qualification is not full-census or Main acceptance.
 - [x] Verify a covering promotion activates the dev-owned baseline producer on
   default main; record authorized runtime adoption separately.
   #6631 and hosted job `115706505844` prove activation of #6438; this
