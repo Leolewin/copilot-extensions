@@ -10,12 +10,14 @@ that pattern to this repository.
 
 | Effort | Status | Coordination |
 |--------|--------|--------------|
+| [Producer Work Reuse](active/producer-work-reuse/README.md) | Draft; code-grounded producer caching/batching/indexing plan only; execution admission pending | #7948/#7949/#7950 and retained #2110 declaration/health acceptance; no rollout |
+| [Reconstructible Runtime State](active/reconstructible-runtime-state/README.md) | Draft; source-only recovery and rollback-compatible reconstruction plan; implementation admission pending | #7947; preserves #1460/#1915 compatibility and #3761 ground-state ownership; no live rebuild or rollout |
 | [Prompt Receipt Observation](active/prompt-receipt-observation/README.md) | Draft; bounded async non-provisioning first-prompt receipt plan before implementation | #7942; unchanged consumption authority; no installed rollout |
-| [Performance Telemetry](active/performance-telemetry/README.md) | Draft; existing-seam interface review before bounded producers, optional OpenTelemetry and native qualification | #7935 / #5900; preserves #7938/#7943 production owners and #5215 readiness |
-| [Picker Pending Binding](active/picker-pending-binding/README.md) | Draft; responsive consumer startup and current-feed plan before implementation | #7938; preserves #7974 engine and #7788 native launch owners |
+| [Performance Telemetry](active/performance-telemetry/README.md) | Active; producer and optional OTLP source merged; native, structured-signal and rollout acceptance retained | #7935 / #5900; preserves #7938/#7943 production owners and #5215 readiness |
+| [Picker Pending Binding](active/picker-pending-binding/README.md) | Active; reviewed consumer startup implementation and native headless qualification, full cold budget remains open | #7938; preserves #7974 engine and #7788 native launch owners |
 | [Generation-Bound Guidance](active/generation-bound-guidance/README.md) | Draft; reviewed preparation/reuse and late-refresh contract before implementation | #7943; preserves #7694/#7788 and #7974 owners; no installed rollout |
 | [Native Mux Launch Contract](active/native-mux-launch-contract/README.md) | Draft; reviewed proposal before terminal-custody, connected-status and resumed-directory repairs | #7962; preserves #4564 recovery and #352/#5961/#4496 host owners |
-| [Namespace Discovery Latency](active/namespace-discovery-latency/README.md) | Draft; reviewed plan before bounded provider/startup repair, unchanged foreground deadline | #5761 latency slice; preserves #3963/#5559 owners and broader diagnostics |
+| [Namespace Discovery Latency](active/namespace-discovery-latency/README.md) | Active; Windows source qualified within unchanged deadline; code publication, Linux lane and rollout acceptance open | #5761 latency slice; preserves #3963/#5559 owners and broader diagnostics |
 | [Coordinated Launch Maintenance](active/coordinated-launch-maintenance/README.md) | Active; source-only Windows broker amendment precedes implementation; release and rollout remain open | #7694; prerequisite #6859; preserves #6812/#6820/#7667 owners |
 | [SSH Reverse Candidate Forward](active/ssh-reverse-candidate-forward/README.md) | Active; reviewed intent merged; finite SSH owner candidate and lifecycle review corrections in progress | #7720; complements #7719 publication without a second selector; actual OpenSSH/adoption remain separate |
 | [Backlog Reconciliation](active/backlog-reconciliation/README.md) | Active; oldest-first evidence and requirement-preserving consolidation, no implementation | #7556; 1,458 baseline, 729 guidance checkpoint |
@@ -56,7 +58,7 @@ that pattern to this repository.
 | [Status-monitor singleton correctness](active/status-monitor-singleton-correctness/README.md) | Draft; planning only, cold-start prerequisite satisfied | #5512 (restart), then #5453 (replacement and promotion/cutover) |
 | [Adopter Material Refresh](active/adopter-material-refresh/README.md) | Active; primary documentation slice complete, preview/reference work unassigned | #5799 |
 | [Machine Fleet Routing Foundation](active/machine-fleet-routing-foundation/README.md) | Active; contract implementation | #5789 |
-| [Mutable dev slot](active/mutable-dev-slot/README.md) | Active | #5472 |
+| [Immutable Dev Slot](active/immutable-dev-slot/README.md) | Active; supersedes mutable/editable deployment; full admission/adopter and bidirectional-cutover acceptance retained | #5472; merged Dev deployment stays #7028/#7029 |
 | [Machine Transport Convergence](active/machine-transport-convergence/README.md) | Active | #5737, #5738, #5740, #5741, #5972, #5973, #5974, #6039 |
 | [agent-index Standalone Service](active/agent-index-standalone-service/README.md) | Active; fleet integration reviewed, container image slice | #5768, #5769, #6383 |
 | [agent-dispatch Standalone + Container](active/agent-dispatch-standalone-container/README.md) | Active; Phase 1 landed | #6177 |
@@ -151,6 +153,7 @@ that pattern to this repository.
 | [PR Recovery Break Glass](2026/10/12%20pr-recovery-break-glass/README.md) | Done; released recovery demonstrated | #5817 |
 | [Mux Child Window Suppression](2026/10/12%20mux-child-window-suppression/README.md) | Done; published repair, verified reachable rollout, remaining adopter verification transferred | #6040 |
 | [Vision Backport Sweep](2026/10/09%20vision-backport-sweep/README.md) | Done; 35-vision source reconciliation, implementation owners retained | #5456 |
+| [Mutable dev slot](2026/10/22%20mutable-dev-slot/README.md) | Done; mutable/editable premise abandoned, not portfolio delivered | [Immutable Dev Slot](active/immutable-dev-slot/README.md), #5472; direct merged Dev deployment #7028/#7029 |
 
 ## Local conventions
 
