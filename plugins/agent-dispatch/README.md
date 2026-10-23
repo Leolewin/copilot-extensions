@@ -2244,6 +2244,12 @@ is installed or auto-started just to enable this optimization. See
 [`Delegated PR waits`](docs/delegated-pr-waits.md) for transition syntax, safe
 fallback decisions, generation-fenced at-least-once completion, and recovery.
 
+An explicitly configured embedding can instead compose the optional
+[`service replay consumer`](docs/delegated-service-replay.md). Its finite cycles
+retain original request/deadline intent in the same waiter rows and settle
+generation-fenced effects before ACK. This does not change CLI defaults or
+install/activate a fleet service.
+
 Everything after `--` is the blocking wait command (its own flags are never parsed
 as `run` options). With `--detach` the wait is re-exec'd as a fully detached,
 cheap OS-level waiter (no agent, no tokens); the expensive worker session is spun
@@ -2422,6 +2428,21 @@ agent-dispatch steer submit <id> --field decision=Proceed \
 # Inspect this request's acceptance, consumption and original wake independently:
 agent-dispatch steer receipt <id> <request-id>
 
+# Freeze the full original request before attempting delivery. Retain this JSON:
+agent-dispatch steer prepare <id> --field decision=Proceed \
+  --expected-status <status> --expected-revision <steering_revision> \
+  --scope-json '<draft_scope JSON>' --request-id <request-id>
+# Later, even from another process/CWD or after the board row has vanished:
+agent-dispatch steer submit <id> --prepared-json '<prepared request JSON>'
+agent-dispatch steer receipt <id> --prepared-json '<prepared request JSON>'
+
+# Save or clear only the card and shared draft that were actually viewed:
+agent-dispatch card draft save <id> --field notes="Unsent notes" \
+  --expected-revision <steering_revision> \
+  --expected-draft-revision <card_draft_revision> --expected-queue-id <draft_scope.queue>
+agent-dispatch card draft clear <id> --expected-revision <steering_revision> \
+  --expected-draft-revision <card_draft_revision> --expected-queue-id <draft_scope.queue>
+
 # The resumed worker drains all answers and continues toward its goal:
 agent-dispatch steer take <id> --all        # -> {"steers": [{"fields": {...}, "sender": ...}]}
 ```
@@ -2451,6 +2472,38 @@ agent-dispatch steer take <id> --all        # -> {"steers": [{"fields": {...}, "
   endpoint. An old owner, or downgrade after the probe, fails explicitly without
   falling back to a legacy write. Direct/manual unguarded steering retains its
   existing advanced-guidance semantics.
+- **Guarded shared drafts.** Task reads and `card show` expose
+  `card_draft_revision`: an opaque revision, or the explicit `absent` token
+  when no draft exists. Save and Clear accept both `--expected-revision` and
+  `--expected-draft-revision`, or neither for legacy unguarded compatibility.
+  A guarded operation compares both inside the existing draft transaction,
+  before any mutation. A replaced card/owner or another client's Save/Reset
+  conflicts without changing drafts, task state, answers or wakes.
+  Every save has a fresh draft nonce, even for identical values/timestamps.
+  Guarded drafts additionally retain their original `steering_revision`;
+  legacy drafts remain readable but do not acquire invented card provenance.
+  SDK callers pass `expected_revision` and `expected_draft_revision` to
+  `save_card_draft`/`clear_card_draft`. Guarded calls require health capability
+  `card_draft_cas: 1` and use dedicated guarded routes; an old or downgraded
+  owner never receives a fallback unguarded write. An ambiguous response
+  requires a fresh read, not automatic Save/Clear replay or an assumption
+  that persistence failed.
+  Task reads, board rows and `card show` also expose `draft_scope`: the existing
+  durable queue identity, a hash of the installation root and the owning host.
+  `--expected-queue-id` (SDK `expected_queue_id`) adds a queue check before the
+  existing CAS. It requires `card_draft_scope: 1` and dedicated scoped routes,
+  so an older owner cannot silently ignore it. No identity store is added.
+  Native Tasks and Maintenance declare these scoped Save/Reset commands through
+  Manager's generic form contract. Shared drafts restore only for their original
+  card version; local recovery additionally binds provider, installation/queue,
+  machine, task, action/schema, card and observed draft revision. Reset clears
+  fields/local recovery only after acknowledgement; a conflict retains both.
+  Local shared-operation copies use immutable per-write records. A delayed
+  acknowledgement retires only its own copies; cleanup failures stay visible.
+  Unconfirmed copies never automatically override the owner draft: Restore
+  local explicitly copies the latest matching response without submitting.
+  Neither Save nor Reset submits answers or wakes a worker. Exact-original-request
+  restart/vanished-row recovery remains separate from draft persistence.
 - **`steer submit`** appends the operator's answer to the task's append-only steer
   inbox and clears `awaiting_steer`; it is **not** worker-owned (the operator, or a
   surface acting for them, answers). After persistence, the coordinator asks
@@ -2459,6 +2512,24 @@ agent-dispatch steer take <id> --all        # -> {"steers": [{"fields": {...}, "
   failure never loses the durable steer. `steer take --all` is the owner-gated
   wake-side read that atomically drains every pending answer for the resumed
   worker; plain `steer take` remains the one-at-a-time inspection form.
+- **Original-request recovery.** `steer prepare` is read-only: it freezes the
+  full wire fields, resolved sender, canonical wake message, wake consent,
+  status/card basis, request ID and owner-reported `draft_scope` as versioned
+  JSON data. Preserve that exact result before delivery. Preparation does not
+  save a draft, submit an answer or wake a worker, and is not a reservation:
+  a subsequent card/owner change still refuses a first submission. SDK callers
+  use `prepare_steer`, `steer_prepared` and `prepared_steer_receipt`.
+  Prepared submit/receipt require `steering_request_context: 1` and dedicated
+  scoped endpoints. Queue, installation and machine must all match; older
+  owners never receive a fallback unscoped call. A receipt must match the
+  original request fingerprint and revision, not just its request ID.
+  Prepared replay does not resolve today's sender/default message and rejects
+  request overrides. The fingerprint detects inconsistent data, not provenance
+  or authorization; clients must still resolve their current trusted provider.
+  Failed/missing/unverifiable reads leave acceptance uncertain. Retain the
+  original data; do not regenerate an ID, assume failure, or retarget a new card.
+  This API adds no task or receipt store. It does not by itself provide the
+  Manager's planned row-independent recovery UI.
 - **Safe to retry on an ambiguous timeout.** `submit_steer`'s own write is a
   single fast local transaction, but the full HTTP round trip can still
   exceed a client's request timeout under load even though the write already
