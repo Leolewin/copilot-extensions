@@ -334,3 +334,24 @@ restarted or updated to force acceptance. No productive rollout is performed.
   presence. Qualified tmux terminal absence is exercised without a render
   request. This source proof does not qualify additional PSMux diagnostics or
   native POSIX execution, which remain with #7962.
+
+### 2026-10-23 - Strict native identity and final integration
+
+- Closed the next review's summary-level malformed-identity gap. Both process
+  owners enforce the registry's existing `$<decimal>:<decimal>` grammar;
+  standalone admission, persistence and restart reuse reject malformed
+  identities visibly. Manager probe parsing retains malformed evidence as
+  unknown, never confirmed absence. Valid zero values remain accepted;
+  no age, lease or freshness requirement was added.
+- The new controls failed first in 15 engine and six Manager cases.
+  Current-base integration then exposed an old recreation fixture using
+  bare numeric epochs and an exhausted finite self-retirement iterator in
+  the real-wire wake fixture. Fixtures now use valid native identities and
+  retain supersession through drain. The elected runtime remains current
+  for the real hook request; election-based retirement ends the run.
+  No production lifetime, wake assertion, timeout or test selection changed.
+- Independently verified all 535 launch/session/status cases in 116.66 seconds
+  and all 200 Manager discovery/daemon/attachment/native IPC cases in
+  37.76 seconds, within the original containment. The backed base rebase
+  preserved peers' archived effort rows; range comparison showed unchanged
+  executable repair commits before this final identity correction.

@@ -1195,8 +1195,8 @@ def test_sweep_retries_failed_mux_publish(tmp_path, monkeypatch):
 def test_sweep_republishes_for_recreated_mux_session(tmp_path, monkeypatch):
     reg = tmp_path / "reg"
     monkeypatch.setattr(m, "_monitor_registry_dir", lambda: reg)
-    m._register_session_for_monitor("wt-a", "/w/a", session_incarnation="100")
-    incarnation = ["100"]
+    m._register_session_for_monitor("wt-a", "/w/a", session_incarnation="$1:100")
+    incarnation = ["$1:100"]
     monkeypatch.setattr(m, "_monitor_list_sessions", lambda mux_bin: {"wt-a": (1, incarnation[0])})
     monkeypatch.setattr(m, "_activate_project_for_path", lambda *a, **k: None)
     monkeypatch.setattr(m, "_render_status_context", lambda *a, **k: "CTX")
@@ -1208,8 +1208,8 @@ def test_sweep_republishes_for_recreated_mux_session(tmp_path, monkeypatch):
     ctx_done = set()
 
     m._monitor_sweep("tmux", "T", "P", ctx_done, published=published, incarnations=incarnations)
-    incarnation[0] = "200"
-    m._register_session_for_monitor("wt-a", "/w/a", session_incarnation="200")
+    incarnation[0] = "$2:200"
+    m._register_session_for_monitor("wt-a", "/w/a", session_incarnation="$2:200")
     m._monitor_sweep("tmux", "T", "P", ctx_done, published=published, incarnations=incarnations)
 
     assert len([call for call in calls if call[1] == "@aw_seg"]) == 2
@@ -4159,7 +4159,7 @@ def _elect_monitor_for_one_iteration(monkeypatch):
 
     retired = iter([False, True, True])
     monkeypatch.setattr(smc, "active_generation_for_pid", lambda pid: 42)
-    monkeypatch.setattr(self_retire, "is_superseded", lambda *args: next(retired))
+    monkeypatch.setattr(self_retire, "is_superseded", lambda *args: next(retired, True))
 
 
 @pytest.mark.parametrize("first_failure", ["sqlite", "election", "persistent"])
@@ -4465,8 +4465,7 @@ def test_handoff_wake_kind_actually_wakes_the_running_monitor_sweep(tmp_path, mo
     monkeypatch.setattr(smc, "publish_route", lambda *a, **k: None)
     _elect_monitor_for_one_iteration(monkeypatch)
     monkeypatch.setattr(smc, "clear_route_if_owner", lambda pid: False)
-    runtime_states = iter([False, True])
-    monkeypatch.setattr(m, "_runtime_superseded", lambda **_kw: next(runtime_states, True))
+    monkeypatch.setattr(m, "_runtime_superseded", lambda **_kw: False)
     monkeypatch.setattr(
         m,
         "_monitor_sweep",

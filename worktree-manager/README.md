@@ -167,6 +167,10 @@ and an atomic hidden identity companion, so monitor restart does not trust a
 same-name replacement. Changed or unknown incarnations are excluded from
 presentation until their original directory is attributed again, including
 while detached. A failed identity write cannot authorize presentation.
+Admission and persisted reuse require the native `$<decimal>:<decimal>`
+session-ID/creation identity, including valid zero values. Malformed or unknown
+identities cannot authorize presentation or be mistaken for confirmed absence;
+this is a syntax fence, not a new freshness or lease rule.
 Unresolved sessions retry no sooner than 20 seconds after an attempt completes;
 a new native incarnation has its own retry fence.
 

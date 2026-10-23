@@ -33,6 +33,34 @@ def test_qualified_tmux_terminal_absence_matches_canonical_contract(monkeypatch,
     assert result == {"applied": False, "reason": "session-absent"}
 
 
+@pytest.mark.parametrize("incarnation", [
+    ":", "$1:bad", "1:100", "foreign:100", "$:100", "$1:", "$1:100:200",
+])
+def test_malformed_roster_identity_is_unknown_not_presence_or_absence(monkeypatch, incarnation):
+    _probe(monkeypatch, f"wt-other\t1\t{incarnation}\tworkspace\n")
+    result = mux_discovery.confirm_native_session(_payload(), connected_only=False)
+    assert result == {"applied": False, "reason": "session-unconfirmed"}
+
+
+@pytest.mark.parametrize("incarnation", [":", "$1:bad", "foreign:100"])
+def test_malformed_requested_identity_never_admits(monkeypatch, tmp_path, caplog, incarnation):
+    _probe(monkeypatch, f"wt-one\t1\t{incarnation}\tworkspace\n")
+    registry = MuxMappingRegistry(tmp_path / "mapping.json")
+    assert not mux_discovery.discover_mapping(
+        registry, _payload(session_incarnation=incarnation),
+    )["applied"]
+    assert registry.snapshot() == {}
+    assert any("malformed" in record.message for record in caplog.records)
+
+
+@pytest.mark.parametrize("incarnation", ["$0:0", "$0:1700000000", "$123:1700000001"])
+def test_actual_native_decimal_identities_remain_confirmable(monkeypatch, incarnation):
+    _probe(monkeypatch, f"wt-one\t1\t{incarnation}\tworkspace\n")
+    assert mux_discovery.confirm_native_session(
+        _payload(session_incarnation=incarnation), connected_only=False,
+    ) == {"applied": True, "attached_clients": 1}
+
+
 def test_connected_mapping_is_admitted_and_survives_daemon_restart(monkeypatch, tmp_path):
     _probe(monkeypatch)
     registry = MuxMappingRegistry(tmp_path / "mapping.json")

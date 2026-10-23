@@ -27,6 +27,76 @@ def _record(wt_id, path):
     return SimpleNamespace(worktree_id=wt_id, worktree_path=str(path), status="active")
 
 
+@pytest.mark.parametrize("incarnation", [
+    ":", "$1:bad", "1:100", "foreign:100", "$:100", "$1:", "$1:100:200", "$-1:100", "$1:-100",
+])
+def test_malformed_initial_identity_cannot_admit_or_initialize(monkeypatch, tmp_path, caplog, incarnation):
+    monkeypatch.setattr(discovery, "_tracked_worktrees",
+                        lambda: pytest.fail("malformed native identity must not scan records"))
+    monkeypatch.setattr(discovery, "discover_via_manager",
+                        lambda *args: pytest.fail("malformed native identity must not admit"))
+    monkeypatch.setattr(discovery, "_initialize_standalone_presentation",
+                        lambda *args: pytest.fail("malformed native identity must not present"))
+    assert discovery.discover_connected_worktrees(
+        {"wt-one": (1, incarnation)}, "mux", None,
+    ) == {}
+    assert discovery._observed_incarnation((1, incarnation)) == ""
+    assert any("malformed" in record.message for record in caplog.records)
+
+
+@pytest.mark.parametrize("incarnation", [":", "$1:bad", "foreign:100"])
+def test_malformed_registration_is_not_persisted(tmp_path, caplog, incarnation):
+    registry = tmp_path / "registry"
+    assert not discovery.write_standalone_registration(
+        registry, "wt-one", str(tmp_path), incarnation,
+    )
+    assert not registry.exists()
+    assert any("malformed" in record.message for record in caplog.records)
+
+
+@pytest.mark.parametrize("incarnation", ["$0:0", "$0:1700000000", "$123:1700000001"])
+def test_native_decimal_identity_registration_and_reuse_remain_valid(tmp_path, incarnation):
+    registry = tmp_path / "registry"
+    assert discovery.write_standalone_registration(registry, "wt-one", str(tmp_path), incarnation)
+    assert discovery._observed_incarnation((1, incarnation)) == incarnation
+    assert discovery._standalone_identity_current(registry, "wt-one", str(tmp_path), incarnation)
+
+
+@pytest.mark.parametrize("incarnation", [":", "$1:bad", "foreign:100"])
+def test_persisted_malformed_identity_after_restart_cannot_paint_same_name_replacement(
+    monkeypatch, tmp_path, incarnation,
+):
+    import json
+    from agent_worktrees import __main__ as monitor
+
+    registry = tmp_path / "registry"
+    registry.mkdir()
+    (registry / "wt-one").write_text(str(tmp_path), encoding="utf-8")
+    discovery.standalone_identity_path(registry, "wt-one").write_text(json.dumps({
+        "version": 1, "path": str(tmp_path), "session_incarnation": incarnation,
+    }), encoding="utf-8")
+    monkeypatch.setattr(monitor, "_monitor_registry_dir", lambda: registry)
+    monkeypatch.setattr(monitor, "_monitor_list_sessions",
+                        lambda mux: {"wt-one": (1, incarnation)})
+    monkeypatch.setattr(discovery, "_tracked_worktrees",
+                        lambda: [("project", _record("one", tmp_path))])
+    monkeypatch.setattr(discovery, "_session_path_matches", lambda *args: False)
+    monkeypatch.setattr(discovery, "discover_via_manager", lambda *args: None)
+    monkeypatch.setattr(monitor, "_activate_project_for_path",
+                        lambda *a, **kw: monitor.cfg.set_active_project("project"))
+    monkeypatch.setattr(monitor, "_render_status_context", lambda *a, **kw: "CTX")
+    monkeypatch.setattr(monitor, "_render_status_segment", lambda *a, **kw: "SEG")
+    monkeypatch.setattr(monitor, "_monitor_maybe_trigger_handoff_cutover", lambda *a, **kw: None)
+    monkeypatch.setattr(monitor, "_warm_list_cache_for_active_project", lambda **kw: 0)
+    writes = []
+    monkeypatch.setattr(monitor, "_monitor_mux_set", lambda *args: writes.append(args) or True)
+    assert monitor._monitor_sweep("mux", "token", "prefix", set()) == 0
+    assert writes == []
+    assert not discovery._standalone_identity_current(
+        registry, "wt-one", str(tmp_path), incarnation,
+    )
+
+
 @pytest.mark.parametrize("mux_bin", ["tmux", "psmux"])
 def test_standalone_discovery_initializes_session_formats_before_registration(
     monkeypatch, tmp_path, mux_bin,

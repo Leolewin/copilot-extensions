@@ -21,6 +21,16 @@ _retry_after: dict[tuple[str, str, str], float] = {}
 _now = time.monotonic
 
 
+def _valid_native_incarnation(value) -> bool:
+    if not isinstance(value, str):
+        return False
+    session_id, separator, created = value.partition(":")
+    return bool(
+        separator and session_id.startswith("$")
+        and session_id[1:].isdecimal() and created.isdecimal()
+    )
+
+
 def standalone_identity_path(registry_dir: Path, name: str) -> Path:
     return registry_dir / f".{name}.identity.json"
 
@@ -28,6 +38,9 @@ def standalone_identity_path(registry_dir: Path, name: str) -> Path:
 def write_standalone_registration(
     registry_dir: Path, name: str, path: str, incarnation: str | None,
 ) -> bool:
+    if incarnation is not None and not _valid_native_incarnation(incarnation):
+        LOG.warning("Refusing malformed native mux identity for %s", name)
+        return False
     entries = [(registry_dir / name, path)]
     if incarnation:
         entries.append((standalone_identity_path(registry_dir, name), json.dumps({
@@ -56,12 +69,18 @@ def write_standalone_registration(
 
 
 def _standalone_identity_current(registry_dir, name, path, incarnation) -> bool:
+    if not _valid_native_incarnation(incarnation):
+        LOG.warning("Refusing malformed native mux identity for %s", name)
+        return False
     if registry_dir is None:
         from .status_monitor_runtime import _monitor_registry_dir
 
         registry_dir = _monitor_registry_dir()
     try:
         entry = json.loads(standalone_identity_path(registry_dir, name).read_text(encoding="utf-8"))
+        if isinstance(entry, dict) and not _valid_native_incarnation(entry.get("session_incarnation")):
+            LOG.warning("Refusing malformed persisted native mux identity for %s", name)
+            return False
         return (
             isinstance(entry, dict) and type(entry.get("version")) is int and entry["version"] == 1
             and entry.get("session_incarnation") == incarnation
@@ -129,7 +148,10 @@ def _session_path_matches(mux_bin: str, name: str, path: str) -> bool:
 
 
 def _observed_incarnation(observation) -> str:
-    if isinstance(observation, tuple) and len(observation) == 2 and isinstance(observation[1], str):
+    if (
+        isinstance(observation, tuple) and len(observation) == 2
+        and _valid_native_incarnation(observation[1])
+    ):
         return observation[1]
     return ""
 
@@ -157,6 +179,7 @@ def _current_mapping_names(
         if (
             name in observations and name in live_names and entry.get("live")
             and entry.get("worktree_path")
+            and _observed_incarnation(observations[name])
             and (not entry.get("session_incarnation")
                  or entry["session_incarnation"] == _observed_incarnation(observations[name]))
         ):
@@ -206,17 +229,17 @@ def discover_connected_worktrees(
         count, incarnation = observation
         if (
             isinstance(count, int) and not isinstance(count, bool) and count > 0
-            and isinstance(incarnation, str) and incarnation and name.startswith("wt-")
+            and name.startswith("wt-")
         ):
+            if not _valid_native_incarnation(incarnation):
+                LOG.warning("Refusing malformed connected native mux identity for %s", name)
+                continue
             connected[name] = (count, incarnation)
     for key in list(_retry_after):
         binary, name, incarnation = key
         observation = live.get(name)
-        changed = (
-            isinstance(observation, tuple) and len(observation) == 2
-            and isinstance(observation[1], str) and observation[1]
-            and observation[1] != incarnation
-        )
+        observed = _observed_incarnation(observation)
+        changed = observed and observed != incarnation
         if binary == mux_bin and (name not in live or changed):
             _retry_after.pop(key)
     legacy_paths = dict(registered_paths or {})

@@ -17,6 +17,16 @@ KIND = "mux-discover-v1"
 LOG = logging.getLogger(__name__)
 
 
+def _valid_native_incarnation(value) -> bool:
+    if not isinstance(value, str):
+        return False
+    session_id, separator, created = value.partition(":")
+    return bool(
+        separator and session_id.startswith("$")
+        and session_id[1:].isdecimal() and created.isdecimal()
+    )
+
+
 def parse_rendered_at(value: str) -> float | None:
     """Best-effort ISO-8601 -> epoch-seconds parse for ordering renders.
 
@@ -140,6 +150,9 @@ def confirm_native_session(
 ) -> dict:
     """A failed enumeration remains unknown and cannot mutate a stored fence."""
     name = payload["mux_session"]
+    if not _valid_native_incarnation(payload.get("session_incarnation")):
+        LOG.warning("Refusing malformed native mux identity for %s", name)
+        return {"applied": False, "reason": "session-unconfirmed"}
     try:
         probe = run_mux_child(
             [payload["mux_bin"], "list-sessions", "-F",
@@ -162,7 +175,7 @@ def confirm_native_session(
     rows = [line.split("\t", 3) for line in probe.stdout.splitlines() if line.strip()]
     if any(
         len(row) != 4 or not row[0] or not row[1].isdecimal() or not row[3]
-        or not row[2].partition(":")[0] or not row[2].partition(":")[2].isdecimal()
+        or not _valid_native_incarnation(row[2])
         for row in rows
     ):
         return {"applied": False, "reason": "session-unconfirmed"}
