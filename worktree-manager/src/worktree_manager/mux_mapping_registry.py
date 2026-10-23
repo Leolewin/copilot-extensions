@@ -25,6 +25,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import shutil
 import sys
 import tempfile
 import time
@@ -34,6 +35,18 @@ from pathlib import Path
 from .self_install import default_root
 
 _REQUIRED_MAPPING_STR_FIELDS = ("project", "worktree_id", "mux_session", "mux_bin")
+
+
+def _same_mux_executable(first: str, second: str) -> bool:
+    if first == second:
+        return True
+    first_path = shutil.which(first) or (first if os.path.isabs(first) else None)
+    second_path = shutil.which(second) or (second if os.path.isabs(second) else None)
+    if first_path is None or second_path is None:
+        return False
+    return os.path.normcase(os.path.realpath(first_path)) == (
+        os.path.normcase(os.path.realpath(second_path))
+    )
 
 # ---------------------------------------------------------------------------
 # Cross-process advisory file lock (mirrors agent_worktrees.mux_link's own
@@ -343,9 +356,10 @@ class MuxMappingRegistry:
             ):
                 return {"applied": False, "reason": "mapping-changed"}
             if current is not None:
-                if any(current[field] != entry[field] for field in (
-                    "mux_session", "mux_bin", "worktree_path",
-                )):
+                if (
+                    any(current[field] != entry[field] for field in ("mux_session", "worktree_path"))
+                    or not _same_mux_executable(current["mux_bin"], entry["mux_bin"])
+                ):
                     return {"applied": False, "reason": "incumbent-mapping"}
                 if current["session_incarnation"] == entry["session_incarnation"]:
                     if not current["live"]:

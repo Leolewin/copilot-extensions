@@ -7,6 +7,8 @@ import pytest
 
 from agent_worktrees import status_monitor_discovery as discovery
 
+_real_register_standalone = discovery._register_standalone
+
 
 @pytest.fixture(autouse=True)
 def matching_native_path(monkeypatch):
@@ -115,7 +117,11 @@ def test_sweep_recovers_manual_native_attachments_without_launch_registration(
     assert ("wt-two", "@aw_seg") in writes
 
 
-@pytest.mark.parametrize("mux,target", [("psmux", "wt-one"), ("tmux", "=wt-one")])
+@pytest.mark.parametrize("mux,target", [
+    ("psmux", "wt-one"), ("tmux", "=wt-one"),
+    (r"C:\Program Files\PSMux\psmux.exe", "wt-one"),
+    ("/opt/mux/PSMUX.EXE", "wt-one"),
+])
 def test_native_original_path_probe_uses_owner_target_contract(
     monkeypatch, tmp_path, matching_native_path, mux, target,
 ):
@@ -126,6 +132,68 @@ def test_native_original_path_probe_uses_owner_target_contract(
     assert matching_native_path(mux, "wt-one", str(tmp_path))
     assert calls[0][0] == [mux, "display-message", "-p", "-t", target, "#{session_path}"]
     assert calls[0][1]["timeout"] == 1
+
+
+@pytest.mark.parametrize("prior_incarnation", [None, "$1:100"])
+@pytest.mark.parametrize("attached", [0, 1])
+def test_replaced_standalone_registration_cannot_paint_a_foreign_session(
+    monkeypatch, tmp_path, prior_incarnation, attached,
+):
+    import json
+    from agent_worktrees import __main__ as monitor
+
+    worktree = tmp_path / "worktree"
+    worktree.mkdir()
+    registry = tmp_path / "registry"
+    registry.mkdir()
+    (registry / "wt-one").write_text(str(worktree), encoding="utf-8")
+    if prior_incarnation:
+        (registry / ".wt-one.identity.json").write_text(json.dumps({
+            "version": 1, "path": str(worktree), "session_incarnation": prior_incarnation,
+        }), encoding="utf-8")
+    monkeypatch.setattr(discovery, "_tracked_worktrees",
+                        lambda: [("project", _record("one", worktree))])
+    monkeypatch.setattr(discovery, "_session_path_matches", lambda *a: False)
+    monkeypatch.setattr(discovery, "discover_via_manager", lambda payload: None)
+    monkeypatch.setattr(monitor, "_monitor_registry_dir", lambda: registry)
+    monkeypatch.setattr(monitor, "_monitor_list_sessions",
+                        lambda mux: {"wt-one": (attached, "$2:200")})
+    monkeypatch.setattr(monitor, "_activate_project_for_path",
+                        lambda *a, **kw: monitor.cfg.set_active_project("project"))
+    monkeypatch.setattr(monitor, "_render_status_context", lambda *a, **kw: "CTX")
+    monkeypatch.setattr(monitor, "_render_status_segment", lambda *a, **kw: "SEG")
+    monkeypatch.setattr(monitor, "_monitor_maybe_trigger_handoff_cutover", lambda *a, **kw: None)
+    monkeypatch.setattr(monitor, "_warm_list_cache_for_active_project", lambda **kw: 0)
+    writes = []
+    monkeypatch.setattr(monitor, "_monitor_mux_set",
+                        lambda *args: writes.append(args) or True)
+    assert monitor._monitor_sweep("mux", "token", "prefix", set()) == 0
+    assert writes == []
+
+
+def test_standalone_identity_survives_restart_and_cleans_up_with_registration(monkeypatch, tmp_path):
+    import json
+    from agent_worktrees import status_monitor_runtime as runtime
+
+    registry = tmp_path / "registry"
+    assert runtime._register_session_for_monitor(
+        "wt-one", str(tmp_path), session_incarnation="$1:100", registry_dir=registry,
+    )
+    assert (registry / "wt-one").read_text(encoding="utf-8") == str(tmp_path)
+    identity = registry / ".wt-one.identity.json"
+    assert json.loads(identity.read_text(encoding="utf-8"))["session_incarnation"] == "$1:100"
+    paths = runtime._read_monitor_registry(registry)
+    assert paths == {"wt-one": str(tmp_path)}
+    monkeypatch.setattr(discovery, "_tracked_worktrees",
+                        lambda: pytest.fail("persisted current identity must not scan records"))
+    monkeypatch.setattr(discovery, "_session_path_matches",
+                        lambda *a: pytest.fail("persisted current identity must not reprobe"))
+    assert discovery.discover_connected_worktrees(
+        {"wt-one": (1, "$1:100")}, "mux", None,
+        registered_paths=paths, registration_dir=registry,
+    ) == {}
+    runtime._remove_monitor_entry(registry, "wt-one")
+    assert list(registry.iterdir()) == []
 
 
 @pytest.mark.parametrize("stdout,code", [("", 0), ("foreign", 0), ("workspace", 1)])
@@ -188,10 +256,16 @@ def test_standalone_discovery_retains_path_for_subsequent_sweeps(monkeypatch, tm
     assert discovery.discover_connected_worktrees(
         {"wt-one": (1, "$1:100")}, "mux", None,
     ) == {"wt-one": str(tmp_path)}
-    assert registrations == [("wt-one", str(tmp_path))]
+    assert registrations == [("wt-one", str(tmp_path), "$1:100", None)]
 
 
 def test_healthy_registered_paths_add_no_scan_probe_or_ipc(monkeypatch, tmp_path):
+    from agent_worktrees import status_monitor_runtime as runtime
+
+    registry = tmp_path / "registry"
+    assert runtime._register_session_for_monitor(
+        "wt-one", str(tmp_path), session_incarnation="$1:100", registry_dir=registry,
+    )
     monkeypatch.setattr(discovery, "_tracked_worktrees",
                         lambda: pytest.fail("healthy registered roster must not be scanned"))
     monkeypatch.setattr(discovery, "_session_path_matches",
@@ -200,8 +274,37 @@ def test_healthy_registered_paths_add_no_scan_probe_or_ipc(monkeypatch, tmp_path
                         lambda *a: pytest.fail("healthy registered mux must not re-register"))
     assert discovery.discover_connected_worktrees(
         {"wt-one": (1, "$1:100")}, "mux", None,
-        registered_paths={"wt-one": str(tmp_path)},
+        registered_paths={"wt-one": str(tmp_path)}, registration_dir=registry,
         before_discover=lambda: pytest.fail("healthy sessions have no discovery mutation"),
+    ) == {}
+
+
+def test_legacy_standalone_registration_is_qualified_before_reuse(monkeypatch, tmp_path):
+    import json
+    from agent_worktrees import status_monitor_runtime as runtime
+
+    registry = tmp_path / "registry"
+    assert runtime._register_session_for_monitor("wt-one", str(tmp_path), registry_dir=registry)
+    monkeypatch.setattr(discovery, "_tracked_worktrees", lambda: [])
+    monkeypatch.setattr(discovery, "_register_standalone", _real_register_standalone)
+    monkeypatch.setattr(discovery, "discover_via_manager",
+                        lambda payload: pytest.fail("legacy standalone intent does not claim a Manager mapping"))
+    paths = runtime._read_monitor_registry(registry)
+    assert discovery.discover_connected_worktrees(
+        {"wt-one": (1, "$1:100")}, "mux", None,
+        registered_paths=paths, registration_dir=registry,
+    ) == {"wt-one": str(tmp_path)}
+    identity = discovery.standalone_identity_path(registry, "wt-one")
+    assert json.loads(identity.read_text(encoding="utf-8"))["session_incarnation"] == "$1:100"
+
+
+def test_failed_standalone_registration_does_not_authorize_presentation(monkeypatch, tmp_path):
+    monkeypatch.setattr(discovery, "_tracked_worktrees",
+                        lambda: [("project", _record("one", tmp_path))])
+    monkeypatch.setattr(discovery, "discover_via_manager", lambda payload: None)
+    monkeypatch.setattr(discovery, "_register_standalone", lambda *args: False)
+    assert discovery.discover_connected_worktrees(
+        {"wt-one": (1, "$1:100")}, "mux", None,
     ) == {}
 
 

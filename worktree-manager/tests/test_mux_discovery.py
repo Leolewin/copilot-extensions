@@ -167,6 +167,43 @@ def test_same_incarnation_tombstone_is_not_resurrected(monkeypatch, tmp_path):
     assert registry.snapshot() == before
 
 
+@pytest.mark.parametrize("live", [False, True])
+def test_launcher_binary_alias_can_recover_a_fresh_native_incarnation(monkeypatch, tmp_path, live):
+    import shutil
+
+    binary = tmp_path / "psmux.exe"
+    binary.touch()
+    monkeypatch.setattr(shutil, "which", lambda name: str(binary) if name == "psmux" else None)
+    registry = MuxMappingRegistry(tmp_path / "mapping.json")
+    registry.register(dict(_payload(mux_bin="psmux"), mapping_revision=9, live=live))
+    _probe(monkeypatch, "wt-one\t1\t$2:200\tworkspace\n")
+    admitted = mux_discovery.discover_mapping(
+        registry, _payload(mux_bin=str(binary), session_incarnation="$2:200"),
+    )
+    assert admitted["applied"]
+    assert admitted["entry"]["mapping_revision"] == 10
+    assert admitted["entry"]["mux_bin"] == str(binary)
+
+
+@pytest.mark.parametrize("resolved", [None, "other-install"])
+def test_matching_executable_basename_is_not_identity(monkeypatch, tmp_path, resolved):
+    import shutil
+
+    binary = tmp_path / "psmux.exe"
+    other = tmp_path / "other-install" / "psmux.exe"
+    monkeypatch.setattr(shutil, "which",
+                        lambda name: str(other) if resolved and name == "psmux" else None)
+    registry = MuxMappingRegistry(tmp_path / "mapping.json")
+    registry.register(dict(_payload(mux_bin="psmux"), mapping_revision=9, live=False))
+    before = registry.snapshot()
+    _probe(monkeypatch, "wt-one\t1\t$2:200\tworkspace\n")
+    refused = mux_discovery.discover_mapping(
+        registry, _payload(mux_bin=str(binary), session_incarnation="$2:200"),
+    )
+    assert refused["reason"] == "incumbent-mapping"
+    assert registry.snapshot() == before
+
+
 def test_fresh_admission_cannot_replace_concurrent_registration(monkeypatch, tmp_path):
     registry = MuxMappingRegistry(tmp_path / "mapping.json")
     registry.register(dict(_payload(), mapping_revision=9, live=False))

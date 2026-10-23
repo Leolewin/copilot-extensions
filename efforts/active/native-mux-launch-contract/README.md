@@ -221,3 +221,27 @@ restarted or updated to force acceptance. No productive rollout is performed.
   platform-parameter cleanup control. This is not native POSIX qualification.
 - All changed Python passes focused lint. Installer closure, source-size and
   headless-launch checks pass; no ceiling or deadline was raised.
+
+### 2026-10-22 - Review corrections
+
+- Addressed all five findings from the first source review: absolute PSMux
+  executables retain native target syntax; repeated interrupts terminate and
+  reap the foreground attach client; POSIX Manager startup uses the shared
+  unreaped process-group cleanup primitive; standalone status admission
+  persists and revalidates native incarnation across restart; and Manager
+  recovery compares resolved executable identity rather than command spelling.
+- Standalone admission suppresses changed and unknown incarnations before
+  presentation, including detached observations. Legacy path registrations
+  require original-directory proof, and failed identity persistence does not
+  become a successful admission. Fresh Manager ownership and standalone
+  fallback retain their existing separate contracts.
+- Normalized setup recognizes absolute shell executables and refuses a second
+  internal execution-directory override. The complete launch/session consumer
+  portfolio passes 239 cases. The four engine status/foreground modules pass
+  252 cases and the complete focused Manager portfolio passes 138 cases.
+  These are source and contained native-boundary checks, not productive
+  deployment, human keyboard or real Copilot resume acceptance.
+- Documentation impact was rechecked against the final review correction:
+  the Manager reference now states restart-safe standalone admission and
+  executable equivalence. Graceful-cutover ownership and rollout remain
+  unchanged; deferred native qualification remains with #7962.

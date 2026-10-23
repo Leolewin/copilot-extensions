@@ -4,20 +4,22 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from . import installer
 
 
 def _normalized_setup_index(command) -> int | None:
     scripts = installer.install_dir() / "scripts"
-    if len(command) > 1 and command[0] == "bash" and Path(command[1]) == scripts / "default-setup.sh":
+    shell = PureWindowsPath(command[0]).stem.casefold() if command else ""
+    if len(command) > 1 and shell == "bash" and Path(command[1]) == scripts / "default-setup.sh":
         return 1
-    if command and command[0] in {"pwsh", "pwsh.exe", "powershell.exe"} and "-File" in command:
-        index = command.index("-File")
+    flags = [arg.casefold() for arg in command]
+    if shell in {"pwsh", "powershell"} and "-file" in flags:
+        index = flags.index("-file")
         if (
             index + 1 < len(command)
-            and all(arg in {"-NoProfile", "-NoLogo"} for arg in command[1:index])
+            and all(arg in {"-noprofile", "-nologo"} for arg in flags[1:index])
             and Path(command[index + 1]) == scripts / "default-setup.ps1"
         ):
             return index + 1
@@ -27,12 +29,17 @@ def _normalized_setup_index(command) -> int | None:
 def bind_execution_directory(command, work_dir: str, error_type):
     """Keep native resume in the selected workspace, not its historical cwd."""
     selected = os.path.normcase(os.path.abspath(work_dir))
+    normalized = _normalized_setup_index(command)
     result = []
     index = 0
     while index < len(command):
         arg = command[index]
-        if arg == "-C" or arg.startswith("-C="):
-            if arg == "-C":
+        setup_flag = normalized is not None and (
+            (command[normalized].endswith(".ps1") and arg.casefold() == "-executiondirectory")
+            or (command[normalized].endswith(".sh") and arg == "--execution-directory")
+        )
+        if arg == "-C" or arg.startswith("-C=") or setup_flag:
+            if arg == "-C" or setup_flag:
                 index += 1
                 value = command[index] if index < len(command) else ""
             else:

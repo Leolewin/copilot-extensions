@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import os
-import signal
 import subprocess
 import sys
 import threading
@@ -19,7 +18,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from agent_procutil import no_window_kwargs, spawn_sync_in_kill_on_close_job
+from agent_procutil import no_window_kwargs, owned_process, spawn_sync_in_kill_on_close_job
 from work_coalescing_singleton import client as wcs_client
 from zdd import routing
 
@@ -221,26 +220,31 @@ def _invoke_manager_ensure(manifest, root: Path) -> bool:
     env["WORKTREE_MANAGER_ROOT"] = str(root)
     env["WORKTREE_MANAGER_ENGINE_ARGV"] = json.dumps([sys.executable, "-m", "agent_worktrees"])
     posix = sys.platform != "win32"
+    if posix:
+        owned_process._require_posix_execution_support()
+    argv = [*manifest.command, "mux-daemon", "ensure"]
     proc, job = spawn_sync_in_kill_on_close_job(
-        [*manifest.command, "mux-daemon", "ensure"], require_job=True,
+        argv, require_job=True,
         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         cwd=str(root), env=env, **no_window_kwargs(),
         **({"start_new_session": True} if posix else {}),
     )
     try:
-        return proc.wait(timeout=10.0) == 0
+        if posix:
+            owned_process._communicate_unreaped(
+                proc, input_text=None, deadline=_now() + 10.0, argv=argv, timeout=10.0,
+            )
+        else:
+            proc.wait(timeout=10.0)
     finally:
-        if job is not None:
+        if posix:
+            owned_process._retire_posix_group(proc)
+        elif job is not None:
             job.close()
         elif proc.poll() is None:
-            if posix:
-                try:
-                    os.killpg(proc.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-            else:
-                proc.kill()
-        proc.wait(timeout=5.0)
+            proc.kill()
+        exit_code = proc.wait(timeout=5.0)
+    return exit_code == 0
 
 
 def _ensure_selected_manager(manifest, root: Path) -> dict:

@@ -244,6 +244,7 @@ def test_ensure_uses_declared_invocation_root_and_bounded_headless_custody(
     import subprocess
     from types import SimpleNamespace
 
+    monkeypatch.setattr(mux_status_link.sys, "platform", "win32")
     root, command = _selected_provider(monkeypatch, tmp_path)
     manifest, diagnostic = mux_status_link._selected_manager()
     assert not diagnostic
@@ -272,6 +273,7 @@ def test_ensure_timeout_closes_owned_job_and_retains_startup_backoff(
     import subprocess
     from types import SimpleNamespace
 
+    monkeypatch.setattr(mux_status_link.sys, "platform", "win32")
     root, _ = _selected_provider(monkeypatch, tmp_path)
     manifest, _ = mux_status_link._selected_manager()
     events = []
@@ -312,14 +314,11 @@ def test_posix_ensure_timeout_retires_its_owned_group_before_reaping(
     root, _ = _selected_provider(monkeypatch, tmp_path)
     manifest, _ = mux_status_link._selected_manager()
     monkeypatch.setattr(mux_status_link.sys, "platform", "linux")
-    monkeypatch.setattr(mux_status_link.signal, "SIGKILL", 9, raising=False)
     events = []
     calls = []
 
     def wait(timeout):
         events.append(("wait", timeout))
-        if timeout == 10.0:
-            raise subprocess.TimeoutExpired("declared-manager", timeout)
         return 0
 
     proc = SimpleNamespace(wait=wait, poll=lambda: None, pid=12345)
@@ -327,14 +326,72 @@ def test_posix_ensure_timeout_retires_its_owned_group_before_reaping(
         mux_status_link, "spawn_sync_in_kill_on_close_job",
         lambda argv, **kwargs: calls.append(kwargs) or (proc, None),
     )
-    monkeypatch.setattr(
-        mux_status_link.os, "killpg",
-        lambda pid, sig: events.append(("kill-group", pid, sig)), raising=False,
-    )
+    def observe(*args, **kwargs):
+        events.append(("observe", kwargs["timeout"]))
+        raise subprocess.TimeoutExpired("declared-manager", kwargs["timeout"])
+
+    monkeypatch.setattr(mux_status_link, "owned_process", SimpleNamespace(
+        _require_posix_execution_support=lambda: None,
+        _communicate_unreaped=observe,
+        _retire_posix_group=lambda process: events.append(("kill-group", process.pid)),
+    ))
     with pytest.raises(subprocess.TimeoutExpired):
         isolated_start_attempts(manifest, root)
     assert calls[0]["start_new_session"] is True
-    assert events == [("wait", 10.0), ("kill-group", 12345, 9), ("wait", 5.0)]
+    assert events == [("observe", 10.0), ("kill-group", 12345), ("wait", 5.0)]
+
+
+def test_posix_timeout_boundary_keeps_exited_leader_pinned_until_descendants_retire(
+    monkeypatch, tmp_path, isolated_start_attempts,
+):
+    import subprocess
+    from types import SimpleNamespace
+
+    root, _ = _selected_provider(monkeypatch, tmp_path)
+    manifest, _ = mux_status_link._selected_manager()
+    monkeypatch.setattr(mux_status_link.sys, "platform", "linux")
+    events = []
+    descendants = [True]
+
+    class Process:
+        pid = 12345
+        returncode = None
+
+        def wait(self, timeout):
+            if timeout == 10:
+                raise subprocess.TimeoutExpired("declared-manager", timeout)
+            events.append("reap")
+            self.returncode = 0
+            return 0
+
+        def poll(self):
+            events.append("poll-reaped")
+            self.returncode = 0
+            return 0
+
+    process = Process()
+    monkeypatch.setattr(mux_status_link, "spawn_sync_in_kill_on_close_job",
+                        lambda *a, **kw: (process, None))
+
+    def observe(*args, **kwargs):
+        events.append("timeout-after-leader-exit")
+        raise subprocess.TimeoutExpired("declared-manager", 10)
+
+    def retire(proc):
+        assert proc.returncode is None, "the original leader identity must still be pinned"
+        descendants[0] = False
+        events.append("retire")
+
+    monkeypatch.setattr(mux_status_link, "owned_process", SimpleNamespace(
+        _require_posix_execution_support=lambda: None,
+        _communicate_unreaped=observe,
+        _retire_posix_group=retire,
+    ), raising=False)
+    with pytest.raises(subprocess.TimeoutExpired):
+        isolated_start_attempts(manifest, root)
+    assert not descendants[0]
+    assert "poll-reaped" not in events
+    assert events.index("retire") < events.index("reap")
 
 
 def test_push_status_via_daemon_forwards_exact_rendered_values_and_releases_client(

@@ -149,10 +149,17 @@ def cmd_copilot(args: argparse.Namespace) -> int:
             except KeyboardInterrupt:
                 try:
                     return client.wait(timeout=30)
-                except subprocess.TimeoutExpired:
-                    client.kill()
-                    client.wait()
-                    return 130
+                except (subprocess.TimeoutExpired, KeyboardInterrupt):
+                    killed = False
+                    while True:
+                        try:
+                            if not killed:
+                                client.kill()
+                                killed = True
+                            client.wait()
+                            return 130
+                        except KeyboardInterrupt:
+                            continue
         os.execvp(mux_bin, argv)  # never returns on success
     except OSError as exc:
         output.err(f"copilot: could not attach to {session_name!r}: {exc}")

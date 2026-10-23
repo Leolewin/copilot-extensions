@@ -175,6 +175,25 @@ def test_foreign_or_missing_launch_directory_is_refused(directory_args):
         m._build_launch_cmd(_config(), _args(directory_args), "/selected worktree")
 
 
+@pytest.mark.parametrize("script,shell,flag", [
+    ("default-setup.ps1", r"C:\Program Files\PowerShell\pwsh.exe", "-ExecutionDirectory"),
+    ("default-setup.sh", "/usr/bin/bash", "--execution-directory"),
+])
+def test_owned_setup_directory_cannot_override_selected_workspace(script, shell, flag):
+    from agent_worktrees import installer
+    from agent_worktrees.process_launcher import bind_execution_directory
+
+    setup = str(installer.install_dir() / "scripts" / script)
+    prefix = [shell, "-noprofile", "-file", setup] if script.endswith(".ps1") else [shell, setup]
+    with pytest.raises(m.LaunchPreflightError, match="directory"):
+        bind_execution_directory([*prefix, flag, "/foreign"], "/selected", m.LaunchPreflightError)
+    command = bind_execution_directory(
+        [*prefix, flag, "/selected"], "/selected", m.LaunchPreflightError,
+    )
+    assert command.count(flag) == 1
+    assert "/foreign" not in command
+
+
 def test_acp_launch_skips_allow_all():
     cmd = m._build_launch_cmd(_config(), _args(["--acp", "--stdio"]), "/w/wt")
     assert "--allow-all" not in cmd

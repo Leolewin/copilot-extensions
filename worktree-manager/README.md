@@ -160,8 +160,13 @@ without first using the Manager launcher. Attribution requires an unambiguous
 local tracking record and the mux's original session directory, not a shell's
 current directory or a `wt-` name prefix alone. Discovery checks at most two
 candidates per sweep, round-robin; a larger connected fleet converges over
-successive sweeps. Current registered paths and fresh managed mappings are
-reused without another roster scan, mux probe or registration request.
+successive sweeps. Current registered paths with an admitted native incarnation
+and fresh managed mappings are reused without another roster scan, mux probe
+or registration request. Standalone registrations retain their raw path file
+and an atomic hidden identity companion, so monitor restart does not trust a
+same-name replacement. Changed or unknown incarnations are excluded from
+presentation until their original directory is attributed again, including
+while detached. A failed identity write cannot authorize presentation.
 Unresolved sessions retry no sooner than 20 seconds after an attempt completes;
 a new native incarnation has its own retry fence.
 
@@ -172,7 +177,9 @@ mapping. Reattachment and daemon reconstruction retain its revision.
 Same-incarnation tombstones cannot be resurrected. A confirmed distinct native
 incarnation for the same canonical worktree can replace an old mapping at a
 higher revision, but only if the registry identity and revision still match the
-snapshot taken before the native probe. Unknown prior incarnations, foreign
+snapshot taken before the native probe. Bare and absolute mux commands must
+resolve to the same executable; similar basenames alone are not equivalent.
+Unknown prior incarnations, foreign
 paths/sessions and concurrent replacements are refused. Failed enumeration is
 unknown, not a zero count or permission to take ownership.
 

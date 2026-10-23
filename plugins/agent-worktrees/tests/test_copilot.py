@@ -267,6 +267,43 @@ class TestCmdCopilot:
         assert calls[:2] == [("wait", None), ("wait", 30)]
         assert (("kill", None) in calls) is not exits_after_interrupt
 
+    @pytest.mark.parametrize("interrupt_kill", [False, True])
+    def test_repeated_interrupts_cannot_release_terminal_before_reaping(
+        self, monkeypatch, interrupt_kill,
+    ):
+        monkeypatch.setattr(m.sys, "platform", "win32")
+        monkeypatch.setattr(m.sys.stdin, "isatty", lambda: True)
+        monkeypatch.setattr(m.sessions, "_mux_bin", lambda mux=None: "psmux")
+        monkeypatch.setattr(
+            m.handoff_cli, "cmd_embody",
+            lambda args: output._json_output({"ok": True, "session": "wt-abc"}) or 0,
+        )
+        waits = iter([KeyboardInterrupt(), KeyboardInterrupt(), KeyboardInterrupt(), 7])
+        events = []
+
+        class Client:
+            def wait(self, timeout=None):
+                events.append(("wait", timeout))
+                result = next(waits)
+                if isinstance(result, BaseException):
+                    raise result
+                events.append(("reaped", result))
+                return result
+
+            def kill(self):
+                events.append(("kill", None))
+                if interrupt_kill and events.count(("kill", None)) == 1:
+                    raise KeyboardInterrupt
+
+        monkeypatch.setattr(subprocess, "Popen", lambda argv: Client())
+        try:
+            result = m.cmd_copilot(_ns(worktree_id="abc"))
+        except KeyboardInterrupt:
+            pytest.fail("an interrupt escaped while the attach client still owned the terminal")
+        assert result == 130
+        assert events[-1] == ("reaped", 7)
+        assert events.count(("kill", None)) == (2 if interrupt_kill else 1)
+
 
 @pytest.mark.skipif(sys.platform != "win32", reason="native Windows foreground process contract")
 def test_native_windows_attach_retains_inherited_input_and_waits(tmp_path):

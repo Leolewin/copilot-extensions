@@ -3079,7 +3079,7 @@ def _monitor_sweep(
         from .status_monitor_discovery import discover_connected_worktrees
 
         registry.update(discover_connected_worktrees(
-            live, mux_bin, managed_mux_cache, registered_paths=registry,
+            live, mux_bin, managed_mux_cache, registered_paths=registry, registration_dir=reg_dir,
             before_discover=lambda: _status_monitor_recheck(
                 governance, "pre-mutation:discover-connected-mux"
             ),
