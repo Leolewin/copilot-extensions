@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import subprocess
 from datetime import datetime
 
@@ -119,19 +120,42 @@ def discover_mapping(registry: MuxMappingRegistry, payload: dict) -> dict:
     )
 
 
-def confirm_native_session(payload: dict, *, connected_only: bool) -> dict:
+def _is_empty_tmux_listing(binary: str, result: subprocess.CompletedProcess[str]) -> bool:
+    """Mirror the engine's mux_list_result contract without crossing process ownership."""
+    name = binary.replace("\\", "/").rsplit("/", 1)[-1].casefold().removesuffix(".exe")
+    if name != "tmux" or result.returncode != 1 or (result.stdout or "").strip():
+        return False
+    message = (result.stderr or "").strip()
+    return bool(
+        re.fullmatch(r"no server running on [^\r\n]+", message)
+        or re.fullmatch(
+            r"error connecting to [^\r\n]+ \(No such file or directory\)",
+            message,
+        )
+    )
+
+
+def confirm_native_session(
+    payload: dict, *, connected_only: bool, timeout_s: float = 2.0,
+) -> dict:
     """A failed enumeration remains unknown and cannot mutate a stored fence."""
     name = payload["mux_session"]
     try:
         probe = run_mux_child(
             [payload["mux_bin"], "list-sessions", "-F",
              "#{session_name}\t#{session_attached}\t#{session_id}:#{session_created}\t#{session_path}"],
-            capture_output=True, text=True, timeout=2, **no_window_kwargs(),
+            capture_output=True, text=True, timeout=timeout_s, **no_window_kwargs(),
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         LOG.warning("Connected mux discovery probe failed for %s: %s", name, exc)
         return {"applied": False, "reason": "enumeration-unavailable"}
     if probe.returncode != 0:
+        if (
+            (probe.stdout is None or isinstance(probe.stdout, str))
+            and (probe.stderr is None or isinstance(probe.stderr, str))
+            and _is_empty_tmux_listing(payload["mux_bin"], probe)
+        ):
+            return {"applied": False, "reason": "session-absent"}
         return {"applied": False, "reason": "enumeration-unavailable"}
     if not isinstance(probe.stdout, str):
         return {"applied": False, "reason": "session-unconfirmed"}

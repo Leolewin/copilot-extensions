@@ -193,6 +193,12 @@ remain retryable if initialization fails, without changing global mux settings.
 A complete valid native listing that confirms disappearance retires the mapping
 through the existing revision/incarnation-guarded tombstone path. Failed or
 malformed probes and same-name replacements do not authorize retirement.
+The existing attachment observer also reconciles discovered session identity
+without waiting for a new render, replacing rather than adding an attachment
+probe within its two-probe/two-second cycle and completion-based 20-second
+cadence. Exact tmux missing-server/missing-socket diagnostics with exit 1 and
+empty output qualify terminal absence; other failures, including unqualified
+PSMux diagnostics, remain unknown.
 When Manager is absent,
 the existing standalone engine writer remains available. An unavailable or
 refusing configured Manager is not permission to bypass its presentation lane.

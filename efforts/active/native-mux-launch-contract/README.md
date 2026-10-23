@@ -306,3 +306,31 @@ restarted or updated to force acceptance. No productive rollout is performed.
   `--` and named slots. The full launch portfolio then passes 107 cases in
   57.44 seconds; both resume and directory flags reach the native child
   without either slot becoming an argument.
+
+### 2026-10-23 - Render-independent retirement
+
+- The review's remaining lifecycle observation exposed a coupled gap:
+  confirmed absence was retired only on a new status apply. Unchanged renders
+  can be coalesced while stale live mappings keep the daemon in demand.
+  The existing attached-client observer is the independent owner for this
+  reconciliation, within its unchanged bounded selection and retry cadence.
+- The repository's existing tmux absence contract distinguishes exact
+  missing-server/missing-socket diagnostics from arbitrary failed probes.
+  That contract does not qualify PSMux-specific errors or generic
+  "no sessions" text. Permission failures, malformed or partial output,
+  timeouts and replacement incarnations remain unknown, not permission to
+  retire an owner.
+- Assigned the bounded observer/discovery repair and fail-first controls to
+  the existing connected-status implementer. No extra service, probing loop,
+  presenter or recovery owner is introduced; final source review remains open.
+- The observer now replaces the selected discovered mapping's attachment probe
+  with identity-aware enumeration and uses the same guarded tombstone helper.
+  Its two-probe/two-second cycle and completion-based 20-second cadence remain
+  unchanged. Fail-first controls produced 22 failures; the final independent
+  four-module Manager portfolio passes 187 cases in 35.32 seconds under the
+  unchanged 120-second containment.
+- Controls preserve unknown, malformed, timed-out and same-name replacement
+  evidence, concurrent mapping revision/incarnation changes and zero-client
+  presence. Qualified tmux terminal absence is exercised without a render
+  request. This source proof does not qualify additional PSMux diagnostics or
+  native POSIX execution, which remain with #7962.

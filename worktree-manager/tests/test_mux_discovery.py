@@ -17,9 +17,20 @@ def _payload(**overrides):
     return result
 
 
-def _probe(monkeypatch, stdout="wt-one\t1\t$1:100\tworkspace\n", code=0):
+def _probe(monkeypatch, stdout="wt-one\t1\t$1:100\tworkspace\n", code=0, stderr=""):
     monkeypatch.setattr(mux_discovery, "run_mux_child",
-                        lambda *a, **kw: subprocess.CompletedProcess(a, code, stdout=stdout))
+                        lambda *a, **kw: subprocess.CompletedProcess(a, code, stdout=stdout, stderr=stderr))
+
+
+@pytest.mark.parametrize("binary", ["tmux", "/usr/bin/tmux", r"C:\Tools\tmux.exe"])
+@pytest.mark.parametrize("diagnostic", [
+    "no server running on /run/user/1000/tmux/default",
+    "error connecting to /run/user/1000/tmux/default (No such file or directory)",
+])
+def test_qualified_tmux_terminal_absence_matches_canonical_contract(monkeypatch, binary, diagnostic):
+    _probe(monkeypatch, "", 1, diagnostic + "\n")
+    result = mux_discovery.confirm_native_session(_payload(mux_bin=binary), connected_only=False)
+    assert result == {"applied": False, "reason": "session-absent"}
 
 
 def test_connected_mapping_is_admitted_and_survives_daemon_restart(monkeypatch, tmp_path):
