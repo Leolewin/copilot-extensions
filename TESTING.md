@@ -7,6 +7,18 @@ How to run the plugin test suites, the fast gates to run before a push, and the
 > keeps only a short inline summary; the per-plugin release/versioning rules live
 > in [`docs/pipelines.md`](docs/pipelines.md).
 
+## Optional diagnostic telemetry
+
+The shared `libs/process-telemetry` contract is exercised by its real Bridge
+consumer. Run the bounded runner for `agent-bridge` with
+`--test-file tests/test_process_telemetry.py --test-file tests/test_telemetry.py`
+and for `agent-dispatch` with `--test-file tests/test_telemetry.py`.
+These tests prove bounded producer behavior and compatibility, not native
+startup latency or OpenTelemetry export. Threaded blocked/throwing sink controls
+belong to the on-demand integration portfolio, not required unit-only CI.
+The [reviewed effort](efforts/active/performance-telemetry/README.md) retains
+native boundary, actual SDK/local receiver and overhead qualification.
+
 ## Static SSH plugin preparation
 
 Bridge's `tests/test_ssh_plugin_preparation.py` executes the streamed stdlib
@@ -43,6 +55,28 @@ creation, produces an explicit missing-privilege skip; other failures propagate.
 Supported POSIX and provisioned Windows hosts still execute the real linked-file
 refusal assertions. No test enables Developer Mode or elevates the process.
 `tools/test_symlink_capability.py` checks that classification independently.
+
+## Client frontdoor native acceptance
+
+`fleet-manager/tests/test_client_frontdoor_native.py` separates the real
+construction prerequisite, concurrent independent registration owners, and
+platform command/exact-rerun behavior. The constructed client remains the real
+offline installed distribution; no construction, health, publication or
+registration primitive is mocked. Per-case 90-second, build 30-second,
+registration-child 60-second and command 20-second bounds remain unchanged.
+Each registration case uses actual owned command withdrawal at teardown so a
+different test's directory cannot become its registration authority.
+
+On slower native Windows hosts, run each native case as a separate
+`PYTEST_ADDOPTS=-k` selection through
+`tools/run-standalone-tests.py`, retaining its 120-second caller bound. Use
+`construction_prerequisite`, `owners_serialize_and_reuse` and
+`commands_and_exact_rerun` in separate invocations. Each registration/command
+case still constructs its real prerequisite through the shared fixture; the
+separate construction case asserts the prerequisite's own contract. A missed
+stage deadline is still a failure, not a reason to omit health, skip an
+assertion or extend the timeout. Ordinary ownership/fault cases remain in
+`test_client_frontdoor.py`; the periodic standalone suite discovers both files.
 
 ## Unit-only promotion packet
 
