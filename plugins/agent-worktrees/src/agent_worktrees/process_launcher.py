@@ -47,16 +47,14 @@ def _bash_argument_boundary(command, passthrough_start: int, error_type):
     script_index = command_flag + 1
     script = command[script_index].strip() if script_index < passthrough_start else ""
     if script in {"copilot", "exec copilot"}:
-        command = [*command[:script_index], 'exec copilot "$@"', "copilot",
-                   *command[script_index + 1:]]
-    elif script in {'copilot "$@"', 'exec copilot "$@"'}:
-        if passthrough_start == script_index + 1:
-            command = [*command[:passthrough_start], "copilot", *command[passthrough_start:]]
-    else:
+        command = [*command[:script_index], 'exec copilot "$@"', *command[script_index + 1:]]
+    elif script not in {'copilot "$@"', 'exec copilot "$@"'}:
         raise error_type(
             "A Bash command-string launch must directly forward Copilot arguments; "
             "use a launcher script for a compound command"
         )
+    if passthrough_start == script_index + 1:
+        command = [*command[:passthrough_start], "copilot", *command[passthrough_start:]]
     return command, script_index + 2
 
 

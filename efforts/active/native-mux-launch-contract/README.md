@@ -299,3 +299,10 @@ restarted or updated to force acceptance. No productive rollout is performed.
 - The complete launch portfolio passes 101 cases in 34.98 seconds, including
   native PowerShell and local Git Bash controls. Touched-code lint, whitespace
   and module ceilings pass; no test deadline or source ceiling changed.
+- Follow-up review exposed an existing command-name slot in a simple Bash
+  template becoming a spurious Copilot positional argument. Slot insertion
+  now happens only when absent for every supported command-string form.
+  Fail-first controls reproduced six failures, including actual native
+  `--` and named slots. The full launch portfolio then passes 107 cases in
+  57.44 seconds; both resume and directory flags reach the native child
+  without either slot becoming an argument.

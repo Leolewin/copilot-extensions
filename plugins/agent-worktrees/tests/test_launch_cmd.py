@@ -236,6 +236,19 @@ def test_bash_forwarding_template_preserves_its_existing_command_name():
     assert command.count("-C=/selected worktree") == 1
 
 
+@pytest.mark.parametrize("script", ["copilot", "exec copilot"])
+@pytest.mark.parametrize("command_name", ["configured-command-name", "--"])
+def test_bash_command_template_preserves_existing_command_name_slot(script, command_name):
+    command = _inner_command(m._build_launch_cmd(
+        _config({"linux": ["bash", "-c", script, command_name]}),
+        _args(["--resume=conversation"]), "/selected worktree",
+    ))
+    assert command[:4] == ["bash", "-c", 'exec copilot "$@"', command_name]
+    assert command[4] == "--resume=conversation"
+    assert command.count(command_name) == 1
+    assert command.count("-C=/selected worktree") == 1
+
+
 def test_bash_script_arguments_are_not_shell_command_options():
     prefix = ["bash", "/custom/setup.sh", "-c", "script-option"]
     command = _inner_command(m._build_launch_cmd(
@@ -1323,7 +1336,8 @@ def test_custom_powershell_command_forwards_selected_directory(tmp_path):
     assert "--resume=synthetic-anchor-origin" in received
 
 
-def test_bash_command_template_reaches_native_child(tmp_path):
+@pytest.mark.parametrize("command_name", [None, "--", "configured-command-name"])
+def test_bash_command_template_reaches_native_child(tmp_path, command_name):
     from agent_procutil import no_window_kwargs
 
     shell = shutil.which("bash")
@@ -1343,8 +1357,11 @@ def test_bash_command_template_reaches_native_child(tmp_path):
         '#!/bin/sh\nprintf "%s\\n" "$@" > "$NATIVE_ARGV_MARKER"\n', encoding="utf-8",
     )
     copilot.chmod(0o700)
+    template = [shell, "-c", "copilot"]
+    if command_name is not None:
+        template.append(command_name)
     command = _inner_command(m._build_launch_cmd(
-        _config({"linux": [shell, "-c", "copilot"]}),
+        _config({"linux": template}),
         _args(["--resume=synthetic-anchor-origin"]), str(selected),
     ))
     completed = subprocess.run(
@@ -1357,6 +1374,8 @@ def test_bash_command_template_reaches_native_child(tmp_path):
     received = marker.read_text(encoding="utf-8").splitlines()
     assert f"-C={selected}" in received
     assert "--resume=synthetic-anchor-origin" in received
+    assert "--" not in received
+    assert "configured-command-name" not in received
 
 
 @pytest.mark.skipif(os.name != "nt", reason="native PowerShell-to-command argument forwarding")
