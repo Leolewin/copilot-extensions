@@ -152,6 +152,49 @@ be verified at all (git itself unavailable or the probe timed out) is
 reported separately under `repo_registration.unknown` — visible, but never
 treated as confirmed drift.
 
+## Connected native mux status
+
+The engine status monitor discovers connected canonical worktree mux sessions
+even when they were created directly or reattached with native `psmux`/`tmux`,
+without first using the Manager launcher. Attribution requires an unambiguous
+local tracking record and the mux's original session directory, not a shell's
+current directory or a `wt-` name prefix alone. Discovery checks at most two
+candidates per sweep, round-robin; a larger connected fleet converges over
+successive sweeps. Current registered paths and fresh managed mappings are
+reused without another roster scan, mux probe or registration request.
+Unresolved sessions retry no sooner than 20 seconds after an attempt completes;
+a new native incarnation has its own retry fence.
+
+The existing authenticated mux-daemon endpoint admits these observations with
+`mux-discover-v1`. Manager confirms the native session incarnation, original
+directory and positive attachment count before atomically creating an absent
+mapping. Reattachment and daemon reconstruction retain its revision.
+Same-incarnation tombstones cannot be resurrected. A confirmed distinct native
+incarnation for the same canonical worktree can replace an old mapping at a
+higher revision, but only if the registry identity and revision still match the
+snapshot taken before the native probe. Unknown prior incarnations, foreign
+paths/sessions and concurrent replacements are refused. Failed enumeration is
+unknown, not a zero count or permission to take ownership.
+
+The engine remains the status-data authority; Manager still applies rendered
+options through `mux-status-v1` and republishes live observations. Status pushes
+carry the expected mapping revision and incarnation, and discovered mappings
+also recheck the native incarnation before presentation. When Manager is absent,
+the existing standalone engine writer remains available. An unavailable or
+refusing configured Manager is not permission to bypass its presentation lane.
+An older Manager that does not support discovery remains visibly deferred and
+subject to the same retry cadence, without aborting the monitor sweep.
+Positive attributable connected-session demand can start a dormant selected
+Manager through its registered command's existing `mux-daemon ensure` operation.
+The declared installation root is retained for startup and IPC; no PATH search,
+installer or updater is used. Existing explicit sink-root overrides still apply
+to status delivery; an override conflicting with the selected installation
+defers automatic startup instead of silently selecting another root.
+Startup attempts share a 20-second completion-based
+backoff across sessions. A reachable peer is never restarted because it rejects
+the discovery request.
+No installation, global mux configuration or extra service is required.
+
 ## Launch preparation
 
 For changes to installation or launch, run the ordinary contained Manager tests

@@ -23,6 +23,7 @@ SETUP_HOOK=""
 SESSION_PATH=""
 ENV_SCRIPT=""
 COPILOT_PATH_OVERRIDE=""
+EXECUTION_DIRECTORY=""
 CONFIG_ROOT=""
 RUNTIME_PYTHON=""
 LAUNCH_SEED_RECORD=""
@@ -38,6 +39,7 @@ while [[ $# -gt 0 ]]; do
         --session-path) SESSION_PATH="$2"; shift 2 ;;
         --env-script)   ENV_SCRIPT="$2"; shift 2 ;;
         --copilot-path) COPILOT_PATH_OVERRIDE="$2"; shift 2 ;;
+        --execution-directory) EXECUTION_DIRECTORY="$2"; shift 2 ;;
         --config-root)  CONFIG_ROOT="$2"; shift 2 ;;
         --runtime-python) RUNTIME_PYTHON="$2"; shift 2 ;;
         --launch-seed-record) LAUNCH_SEED_RECORD="$2"; shift 2 ;;
@@ -46,6 +48,9 @@ while [[ $# -gt 0 ]]; do
         *)              COPILOT_ARGS+=("$1"); shift ;;
     esac
 done
+if [[ -n "$EXECUTION_DIRECTORY" ]]; then
+    COPILOT_ARGS+=(-C "$EXECUTION_DIRECTORY")
+fi
 
 # In --stdio (ACP) mode, stdout is the JSON-RPC channel; keep all human-facing
 # output (banner, hook output) off it. `say` and the hook redirect to stderr.

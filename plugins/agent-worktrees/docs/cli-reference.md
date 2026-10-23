@@ -36,6 +36,27 @@ agent-worktrees -p copilot-extensions worktree create --json
 Running a project binstub bare (e.g. `my-control-harness`) still launches the
 interactive picker.
 
+### Attended native CLI sessions
+
+`copilot --worktree-id <id>` or `copilot --codename <name>` creates or rejoins
+the selected worktree's mux in the current terminal. Windows keeps the caller
+waiting for the attached client, with inherited input and output; POSIX replaces
+the caller with that client. Detaching returns the terminal to its backing
+shell. An attach-client failure is reported without terminating the mux server
+or its conversation.
+
+New native launches explicitly select the execution directory, including when
+resuming a conversation originally created in an anchor or another directory.
+A conflicting `-C` override is refused. Normalized setup passes the directory
+through its own named parameter and constructs Copilot's native `-C` argument
+only after shell parameter parsing, preserving Windows drive paths and spaces.
+ACP keeps its existing workspace authority.
+
+Rejoining an already-running mux does not relocate its process or rewrite
+conversation history. Historical session metadata may still describe the
+conversation's origin; use the actual tool/process working directory to
+distinguish that record from the current execution context.
+
 Project-only `get` scalars (`machine`, `platform`, `project`, `repo-dir`, `git-remote`,
 `worktrees-root`, `src-dir`, and `config-dir`) read the layered project
 configuration without scanning current worktree/session identity. Worktree-

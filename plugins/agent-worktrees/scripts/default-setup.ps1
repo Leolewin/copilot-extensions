@@ -49,6 +49,9 @@ param(
     # Optional project-scoped Copilot executable. When set, use it instead of
     # resolving the ambient `copilot` command from PATH.
     [string]$CopilotPath,
+    # Bind native resume after PowerShell parameter parsing, which can split
+    # short directory flags containing a Windows drive colon.
+    [string]$ExecutionDirectory,
     # Guarded machine-local root exported to the setup hook. An explicit value
     # is validated before the hook runs.
     [string]$ConfigRoot,
@@ -63,6 +66,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+if ($ExecutionDirectory) {
+    $CopilotArgs += @('-C', $ExecutionDirectory)
+}
 
 # ── --stdio (ACP) mode: keep human output off the JSON-RPC channel ────────
 # In --stdio mode stdout is the ACP JSON-RPC stream (SSH merges Information into

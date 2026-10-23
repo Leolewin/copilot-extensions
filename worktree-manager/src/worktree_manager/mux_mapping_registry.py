@@ -141,6 +141,7 @@ def _normalize_mapping_entry(payload: dict) -> dict:
         "mux_session": payload["mux_session"],
         "mux_bin": payload["mux_bin"],
         "session_incarnation": session_incarnation,
+        "native_session_incarnation": payload.get("native_session_incarnation"),
         "panes": panes,
         "attached_clients": attached_clients,
         "mapping_revision": revision_raw,
@@ -207,21 +208,31 @@ class MuxMappingRegistry:
 
         return _cm()
 
-    def _read_all(self) -> dict[tuple[str, str], dict]:
+    def _read_all(self, *, strict: bool = False) -> dict[tuple[str, str], dict]:
         try:
             raw = self._path.read_text(encoding="utf-8")
             data = json.loads(raw)
+        except FileNotFoundError:
+            return {}
         except (OSError, ValueError):
+            if strict:
+                raise
             return {}
         if not isinstance(data, list):
+            if strict:
+                raise ValueError("mux registry is not a mapping list")
             return {}
         entries: dict[tuple[str, str], dict] = {}
         for entry in data:
             if not isinstance(entry, dict):
+                if strict:
+                    raise ValueError("mux registry contains an invalid mapping")
                 continue
             try:
                 normalized = _normalize_mapping_entry(entry)
             except ValueError:
+                if strict:
+                    raise
                 continue
             key = (normalized["project"], normalized["worktree_id"])
             existing = entries.get(key)
@@ -306,6 +317,54 @@ class MuxMappingRegistry:
                 payload = dict(payload)
                 payload["mapping_revision"] = next_revision
             return self._register_locked(payload, entries)
+
+    def discover(self, payload: dict, *, expected: dict | None = None) -> dict:
+        """CAS admission after native proof, retaining same-incarnation tombstones."""
+        entry = _normalize_mapping_entry(dict(
+            payload, mapping_revision=1,
+            native_session_incarnation=payload["session_incarnation"],
+        ))
+        key = (entry["project"], entry["worktree_id"])
+        with self._interprocess_lock():
+            try:
+                entries = self._read_all(strict=True)
+            except (OSError, ValueError):
+                return {"applied": False, "reason": "registry-unavailable"}
+            current = entries.get(key)
+            identity = (
+                "mapping_revision", "live", "mux_session", "mux_bin",
+                "session_incarnation", "worktree_path", "native_session_incarnation",
+            )
+            if (
+                (current is None) != (expected is None)
+                or (current is not None and any(
+                    current.get(field) != expected.get(field) for field in identity
+                ))
+            ):
+                return {"applied": False, "reason": "mapping-changed"}
+            if current is not None:
+                if any(current[field] != entry[field] for field in (
+                    "mux_session", "mux_bin", "worktree_path",
+                )):
+                    return {"applied": False, "reason": "incumbent-mapping"}
+                if current["session_incarnation"] == entry["session_incarnation"]:
+                    if not current["live"]:
+                        return {"applied": False, "reason": "incumbent-mapping"}
+                    current = dict(current, attached_clients=entry["attached_clients"])
+                else:
+                    session_id, separator, created = current["session_incarnation"].partition(":")
+                    if not (
+                        separator and session_id.startswith("$")
+                        and session_id[1:].isdecimal() and created.isdecimal()
+                    ):
+                        return {"applied": False, "reason": "incumbent-mapping"}
+                    current = dict(entry, mapping_revision=current["mapping_revision"] + 1)
+                entries[key] = current
+            else:
+                current = entry
+                entries[key] = entry
+            self._write_all(entries)
+            return {"applied": True, "entry": dict(current)}
 
     def remove(
         self,

@@ -149,6 +149,32 @@ def test_plain_launch_does_not_append_removed_no_sandbox_flag():
     assert "--no-sandbox" not in cmd
 
 
+@pytest.mark.parametrize("platform_name", ["Windows", "Linux"])
+def test_launch_pins_native_directory_without_powershell_short_flag_binding(monkeypatch, platform_name):
+    monkeypatch.setattr(m.platform, "system", lambda: platform_name)
+    directory = "/selected worktree"
+    command = _inner_command(m._build_launch_cmd(_config(), _args([]), directory))
+    assert f"-C={directory}" in command
+    assert "-C" not in command
+
+
+@pytest.mark.parametrize("directory_args", [
+    ["-C", "/selected worktree"], ["-C=/selected worktree"],
+])
+def test_matching_directory_flag_is_normalized_once(directory_args):
+    command = _inner_command(m._build_launch_cmd(
+        _config(), _args(directory_args), "/selected worktree",
+    ))
+    assert command.count("-C=/selected worktree") == 1
+    assert "-C" not in command
+
+
+@pytest.mark.parametrize("directory_args", [["-C", "/anchor"], ["-C=/anchor"], ["-C"]])
+def test_foreign_or_missing_launch_directory_is_refused(directory_args):
+    with pytest.raises(m.LaunchPreflightError, match="directory"):
+        m._build_launch_cmd(_config(), _args(directory_args), "/selected worktree")
+
+
 def test_acp_launch_skips_allow_all():
     cmd = m._build_launch_cmd(_config(), _args(["--acp", "--stdio"]), "/w/wt")
     assert "--allow-all" not in cmd
@@ -1168,6 +1194,64 @@ def test_default_setup_ps1_double_dash_copilot_args_not_mis_bound_positionally(
         "--allow-all", "--experimental", "--model", "claude-sonnet-5",
         "--reasoning-effort", "medium", "--context", "long_context",
     ]
+
+
+@pytest.mark.skipif(os.name != "nt", reason="native PowerShell-to-command argument forwarding")
+def test_pinned_resume_directory_survives_normalized_powershell_launch(tmp_path, monkeypatch):
+    from agent_procutil import no_window_kwargs
+    from agent_worktrees import installer
+
+    shell = shutil.which("pwsh")
+    if not shell:
+        pytest.skip("pwsh is unavailable")
+    selected = tmp_path / "selected worktree"
+    selected.mkdir()
+    anchor = tmp_path / "anchor"
+    anchor.mkdir()
+    home = tmp_path / "home"
+    home.mkdir()
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    staged = _stage_launch_command(scripts)
+    setup = scripts / "default-setup.ps1"
+    setup.write_text(
+        (Path(_SCRIPTS_DIR) / "default-setup.ps1").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "copilot.cmd").write_text(
+        '@echo off\r\n'
+        '> "%NATIVE_ARGV_MARKER%" echo %*\r\n'
+        '> "%NATIVE_CWD_MARKER%" echo %CD%\r\n',
+        encoding="utf-8",
+    )
+    argv_marker = tmp_path / "native-argv.txt"
+    cwd_marker = tmp_path / "native-cwd.txt"
+    env = {
+        **os.environ, "HOME": str(home), "USERPROFILE": str(home), "PATH": str(bin_dir),
+        "AGENT_WORKTREES_MACHINE_SETTINGS_RECONCILED": "1",
+        "NATIVE_ARGV_MARKER": str(argv_marker), "NATIVE_CWD_MARKER": str(cwd_marker),
+    }
+    env.pop("AGENT_WORKTREES_LAUNCH_RUNTIME_ROOT", None)
+    monkeypatch.setattr(installer, "install_dir", lambda: tmp_path)
+    config = _config({"linux": [
+        "pwsh.exe", "-NoProfile", "-NoLogo", "-File", str(setup), "-Machine", "test", "-Recovery",
+    ]})
+    command = _inner_command(m._build_launch_cmd(
+        config, _args(["--resume=synthetic-anchor-origin"]), str(selected),
+    ))
+    completed = subprocess.run(
+        [shell, "-NoProfile", "-NoLogo", "-File", str(staged), "--", *command],
+        cwd=selected, env=env, capture_output=True, text=True, timeout=20,
+        **no_window_kwargs(),
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    received = argv_marker.read_text(encoding="utf-8")
+    assert "-ExecutionDirectory" not in received
+    assert f'-C "{selected}"' in received
+    assert "--resume=synthetic-anchor-origin" in received
+    assert Path(cwd_marker.read_text(encoding="utf-8").strip()) == selected
 
 
 def _stage_launch_command(tmp_path: Path) -> Path:

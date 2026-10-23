@@ -1,0 +1,182 @@
+"""Recover native attachments through engine attribution and Manager IPC."""
+
+from __future__ import annotations
+
+import logging
+import os
+import subprocess
+import time
+from pathlib import Path
+
+from agent_procutil import no_window_kwargs
+
+from . import config as cfg
+from . import installer, mux_status_link, sessions, tracking
+
+LOG = logging.getLogger(__name__)
+_last_session: str | None = None
+_retry_after: dict[tuple[str, str, str], float] = {}
+_now = time.monotonic
+
+
+def _tracked_worktrees():
+    projects = installer.read_projects_registry().get("projects", {})
+    if not isinstance(projects, dict):
+        return
+    for project in projects:
+        for record in tracking.list_records(cfg.tracking_dir(project)):
+            if record.status not in {"archived", "finalized"}:
+                yield project, record
+
+
+def discover_via_manager(payload: dict) -> dict | None:
+    """None means Manager is not configured, not a failed admission."""
+    return mux_status_link.push_discovery_via_daemon(payload)
+
+
+def _register_standalone(name: str, path: str) -> bool:
+    from .status_monitor_runtime import _register_session_for_monitor
+
+    return _register_session_for_monitor(name, path)
+
+
+def _session_path_matches(mux_bin: str, name: str, path: str) -> bool:
+    try:
+        result = subprocess.run(
+            [mux_bin, "display-message", "-p", "-t",
+             sessions._mux_named_session_target(name, mux_bin), "#{session_path}"],
+            capture_output=True, text=True, timeout=1, **no_window_kwargs(),
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        LOG.warning("Connected mux path probe unavailable for %s: %s", name, exc)
+        return False
+    return (
+        result.returncode == 0 and bool(result.stdout.strip())
+        and os.path.normcase(os.path.realpath(result.stdout.strip()))
+        == os.path.normcase(os.path.realpath(path))
+    )
+
+
+def _current_mapping_names(connected, cache, registered_paths) -> set[str]:
+    entries = cache.snapshot().values() if cache is not None else []
+    live_names = cache.live_session_names() if cache is not None else set()
+    claimed = set()
+    current = set()
+    for entry in entries:
+        name = entry.get("mux_session")
+        claimed.add(name)
+        if (
+            name in connected and name in live_names and entry.get("live")
+            and entry.get("worktree_path")
+            and (not entry.get("session_incarnation")
+                 or entry["session_incarnation"] == connected[name][1])
+        ):
+            current.add(name)
+    current.update(name for name, path in (registered_paths or {}).items()
+                   if path and name in connected and name not in claimed)
+    return current
+
+
+def discover_connected_worktrees(
+    live: dict[str, tuple[int, str]] | None,
+    mux_bin: str,
+    managed_mux_cache,
+    *,
+    registered_paths: dict[str, str] | None = None,
+    before_discover=None,
+) -> dict[str, str]:
+    """Return newly attributable paths, retaining unknown and incumbent fences.
+
+    Names must exactly match a unique local tracking record's canonical mux
+    name. Neither a foreign shell's cwd nor the ``wt-`` prefix is attribution.
+    Manager absence leaves the existing standalone presentation path available;
+    a Manager refusal/unreachable endpoint never authorizes direct writes.
+    Current served paths require no discovery work. Unresolved incarnations
+    retry at most every 20 seconds, with two candidates per round-robin pass.
+    """
+    global _last_session
+    if live is None:
+        return {}
+    connected = {}
+    for name, observation in (live or {}).items():
+        if not isinstance(observation, tuple) or len(observation) != 2:
+            continue
+        count, incarnation = observation
+        if (
+            isinstance(count, int) and not isinstance(count, bool) and count > 0
+            and isinstance(incarnation, str) and incarnation and name.startswith("wt-")
+        ):
+            connected[name] = (count, incarnation)
+    for key in list(_retry_after):
+        binary, name, incarnation = key
+        observation = live.get(name)
+        changed = (
+            isinstance(observation, tuple) and len(observation) == 2
+            and isinstance(observation[1], str) and observation[1]
+            and observation[1] != incarnation
+        )
+        if binary == mux_bin and (name not in live or changed):
+            _retry_after.pop(key)
+    known = _current_mapping_names(connected, managed_mux_cache, registered_paths)
+    eligible = {
+        name: observation for name, observation in connected.items()
+        if name not in known
+        and _now() >= _retry_after.get((mux_bin, name, observation[1]), 0.0)
+    }
+    if not eligible:
+        return {}
+    candidates: dict[str, list[tuple[str, object]]] = {}
+    try:
+        for project, record in _tracked_worktrees():
+            name = sessions.mux_session_name(record.worktree_id)
+            if name in eligible:
+                candidates.setdefault(name, []).append((project, record))
+    except (OSError, ValueError, TypeError) as exc:
+        LOG.warning("Connected mux attribution unavailable: %s", exc)
+        for name, (_, incarnation) in eligible.items():
+            _retry_after[(mux_bin, name, incarnation)] = _now() + 20.0
+        return {}
+    for name in eligible.keys() - candidates.keys():
+        _retry_after[(mux_bin, name, eligible[name][1])] = _now() + 20.0
+    discovered = {}
+    names = sorted(candidates)
+    start = next((i for i, name in enumerate(names)
+                  if _last_session is None or name > _last_session), 0)
+    # Match the existing attachment observer's bounded round-robin discipline.
+    for offset in range(min(2, len(names))):
+        name = names[(start + offset) % len(names)]
+        _last_session = name
+        count, incarnation = connected[name]
+        try:
+            matches = candidates[name]
+            if len(matches) != 1:
+                LOG.warning("Connected mux %s has ambiguous worktree attribution; discovery deferred", name)
+                continue
+            project, record = matches[0]
+            path = record.worktree_path
+            if not path or not Path(path).is_dir() or not _session_path_matches(mux_bin, name, path):
+                continue
+            payload = {
+                "project": project,
+                "worktree_id": record.worktree_id,
+                "worktree_path": path,
+                "mux_session": name,
+                "mux_bin": mux_bin,
+                "session_incarnation": incarnation,
+                "attached_clients": count,
+            }
+            if before_discover is not None:
+                before_discover()
+            result = discover_via_manager(payload)
+            if result is None:
+                if not _register_standalone(name, path):
+                    LOG.warning("Connected mux %s standalone registration failed", name)
+                discovered[name] = path
+            else:
+                if result.get("applied") and managed_mux_cache is not None:
+                    result = managed_mux_cache.apply_observation(result["entry"])
+                if not result.get("applied"):
+                    LOG.warning("Connected mux %s discovery deferred: %s", name, result.get("reason"))
+        finally:
+            _retry_after[(mux_bin, name, incarnation)] = _now() + 20.0
+    return discovered

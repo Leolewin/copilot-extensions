@@ -9,6 +9,49 @@ from pathlib import Path
 from . import installer
 
 
+def _normalized_setup_index(command) -> int | None:
+    scripts = installer.install_dir() / "scripts"
+    if len(command) > 1 and command[0] == "bash" and Path(command[1]) == scripts / "default-setup.sh":
+        return 1
+    if command and command[0] in {"pwsh", "pwsh.exe", "powershell.exe"} and "-File" in command:
+        index = command.index("-File")
+        if (
+            index + 1 < len(command)
+            and all(arg in {"-NoProfile", "-NoLogo"} for arg in command[1:index])
+            and Path(command[index + 1]) == scripts / "default-setup.ps1"
+        ):
+            return index + 1
+    return None
+
+
+def bind_execution_directory(command, work_dir: str, error_type):
+    """Keep native resume in the selected workspace, not its historical cwd."""
+    selected = os.path.normcase(os.path.abspath(work_dir))
+    result = []
+    index = 0
+    while index < len(command):
+        arg = command[index]
+        if arg == "-C" or arg.startswith("-C="):
+            if arg == "-C":
+                index += 1
+                value = command[index] if index < len(command) else ""
+            else:
+                value = arg[3:]
+            if (
+                not value
+                or os.path.normcase(os.path.abspath(os.path.join(work_dir, value))) != selected
+            ):
+                raise error_type("Copilot launch directory must match the selected execution directory")
+        else:
+            result.append(arg)
+        index += 1
+    normalized = _normalized_setup_index(result)
+    if normalized is not None:
+        flag = "-ExecutionDirectory" if result[normalized].endswith(".ps1") else "--execution-directory"
+        return [*result[:normalized + 1], flag, work_dir, *result[normalized + 1:]]
+    return [*result, f"-C={work_dir}"]
+
+
 def apply_process_launcher(command, args, error_type):
     launcher = getattr(args, "copilot_process_launcher", None)
     if not launcher:
@@ -19,18 +62,7 @@ def apply_process_launcher(command, args, error_type):
     if result and result[0] == "copilot":
         result[0] = launcher
         return result
-    scripts = installer.install_dir() / "scripts"
-    normalized = None
-    if len(result) > 1 and result[0] == "bash" and Path(result[1]) == scripts / "default-setup.sh":
-        normalized = 1
-    elif result and result[0] in {"pwsh", "pwsh.exe", "powershell.exe"} and "-File" in result:
-        index = result.index("-File")
-        if (
-            index + 1 < len(result)
-            and all(arg in {"-NoProfile", "-NoLogo"} for arg in result[1:index])
-            and Path(result[index + 1]) == scripts / "default-setup.ps1"
-        ):
-            normalized = index + 1
+    normalized = _normalized_setup_index(result)
     if normalized is None:
         raise error_type(
             "A process-only Copilot launcher requires a direct copilot "

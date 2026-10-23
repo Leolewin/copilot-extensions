@@ -4465,7 +4465,7 @@ def test_handoff_wake_kind_actually_wakes_the_running_monitor_sweep(tmp_path, mo
     _elect_monitor_for_one_iteration(monkeypatch)
     monkeypatch.setattr(smc, "clear_route_if_owner", lambda pid: False)
     runtime_states = iter([False, True])
-    monkeypatch.setattr(m, "_runtime_superseded", lambda **_kw: next(runtime_states))
+    monkeypatch.setattr(m, "_runtime_superseded", lambda **_kw: next(runtime_states, True))
     monkeypatch.setattr(
         m,
         "_monitor_sweep",
@@ -4495,6 +4495,7 @@ def test_handoff_wake_kind_actually_wakes_the_running_monitor_sweep(tmp_path, mo
     monkeypatch.setattr(resident_push, "bind", _spy_bind)
 
     dial_results = []
+    wake_at_reply = []
 
     class _DialingServer(hook_ipc.HookIpcServer):
         def start(self) -> None:
@@ -4508,11 +4509,16 @@ def test_handoff_wake_kind_actually_wakes_the_running_monitor_sweep(tmp_path, mo
             super().start()
             endpoint_lock = tmp_path / "dial-endpoint.json"
             endpoint_lock.write_text(json.dumps(self.rendezvous()), encoding="utf-8")
+            wake_event = bound[0][0]
+            # Isolate this request from the producer's initial startup wake.
+            wake_event.clear()
+            before = wake_event.is_set()
             dial_results.append(
                 hook_ipc.send_best_effort(
                     "handoffWake", {"worktree_id": "wt-1"}, lock_path=endpoint_lock,
                 )
             )
+            wake_at_reply.append((before, wake_event.is_set()))
 
     monkeypatch.setattr(hook_ipc, "HookIpcServer", _DialingServer)
 
@@ -4520,8 +4526,8 @@ def test_handoff_wake_kind_actually_wakes_the_running_monitor_sweep(tmp_path, mo
 
     assert dial_results == [True], "the real wire round-trip must be accepted"
     assert len(bound) == 1
-    wake_event, _segment_cache = bound[0]
-    assert wake_event.is_set(), (
+    # The loop may legitimately consume the event while draining after start().
+    assert wake_at_reply == [(False, True)], (
         "a real handoffWake request through the actual HookIpcServer must "
         "set the real wake_event the sweep loop waits on, not just satisfy "
         "the _kind_wakes_sweep predicate in isolation"

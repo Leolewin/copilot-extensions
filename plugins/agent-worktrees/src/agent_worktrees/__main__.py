@@ -115,7 +115,7 @@ from . import services as _svc
 from . import session_context as session_context_mod  # noqa: F401 -- compatibility re-export
 from . import state_root as state_root_mod
 from .copilot_launch_prefs import resolve_launch_pref_flags
-from .process_launcher import apply_process_launcher
+from .process_launcher import apply_process_launcher, bind_execution_directory
 from .update_stage import cmd_stage_update as cmd_stage_update, discover_plugin_dir as _discover_plugin_dir
 # front_door_cli's own names are re-exported eagerly (not deferred to
 # _load_full_command_surface() below) because main() calls several of them
@@ -2172,6 +2172,8 @@ def _build_launch_cmd(
     # Append profile-specific Copilot args
     profile_args = profile.copilot_args if profile and profile.copilot_args else []
     cmd.extend(profile_args)
+    if "--acp" not in cmd:
+        cmd = bind_execution_directory(cmd, work_dir, LaunchPreflightError)
 
     # Auto-approve everything so worktree sessions run without any
     # confirmation prompts.  --allow-all is equivalent to
@@ -3074,6 +3076,18 @@ def _monitor_sweep(
             if roster_failure is not None:
                 roster_failure(RuntimeError("mux-session enumeration unavailable"))
             return -1
+        from .status_monitor_discovery import discover_connected_worktrees
+
+        registry.update(discover_connected_worktrees(
+            live, mux_bin, managed_mux_cache, registered_paths=registry,
+            before_discover=lambda: _status_monitor_recheck(
+                governance, "pre-mutation:discover-connected-mux"
+            ),
+        ))
+        managed_entries, managed_observed, managed_served = _monitor_managed_session_union(
+            managed_mux_cache, registry
+        )
+        observed_sessions |= managed_observed
         unmanaged_live_wt, stale_sessions = _monitor_unmanaged_live_sessions({n for n in live if n.startswith("wt-")}, registry, managed_entries, managed_mux_cache=managed_mux_cache)
         observed_sessions |= unmanaged_live_wt
     if stale_sessions:
