@@ -5,7 +5,7 @@
   spanning worktrees, machines, CodeSpaces, and containers.
 - **Scope:** branch (links per-plugin child visions as they are authored)
 - **Status:** Active
-- **Last revised:** 2026-10-21
+- **Last revised:** 2026-10-22
 - **Reality docs:** [`docs/architecture.md`](../../docs/architecture.md) ·
   [`docs/harness-runbook.md`](../../docs/harness-runbook.md) · each plugin's
   `docs/architecture.md`
@@ -546,6 +546,9 @@ conversation content, a task prompt/payload, or any secret) and is **fail-open**
 an unconfigured or misconfigured sink leaves the layer untouched. *How* a consumer
 is attached (an environment variable, a dropped config file) and the on-disk
 config shape are spec-level, not fixed by this vision.
+[Portable Telemetry](../telemetry/README.md) governs the common hooks,
+structured logging, harness-owned sink selection and operation-bound context
+across transports; this fabric intent remains backend-agnostic.
 
 ### survivable-work
 An agent's session output is **recoverable and digestible** after the fact —
@@ -596,9 +599,15 @@ and never *removes* a lower one.
 ### derive-dont-duplicate
 Each fabric state (worktree / session state, live agent status, task records,
 credentials) has a **single owning layer**. Higher layers **read and coordinate
-over** lower-layer state; they do not persist a competing copy. Cross-layer
+over** lower-layer state; they do not persist a competing authority. Cross-layer
 answers (e.g. "who is on this target, and are they live or parked?") are
-**derived** at read time from the owning layers, not stored anew.
+**derived** from those owners, directly or through explicitly adopted observation
+projections. A shared projection retains source identity, freshness and coverage;
+it contains only authorized non-secret observations and does not require every
+client query to probe every source again. It cannot grant control, settle
+obligations or establish safe reassignment from cached state. Transferring an
+owning layer remains an explicit authority migration, not a consequence of
+centralizing observation.
 
 ### claims-owned-by-direction
 The two halves of a worktree's claim ledger (§Features/*resource-claims*) have

@@ -14,6 +14,7 @@ PACKAGES = {
     "single-instance-lease": ("agent-single-instance-lease", set()),
 }
 SUPPORT = (
+    "installer-engine.ps1",
     "installer_engine.py", "installer_engine_process.py", "installer_dependency_policy.py",
     "installer_dependency_config.py", "runtime_launcher.py", "versioned_runtime.py",
     "versioned_runtime_leases.py", "versioned_runtime_construction.py",
@@ -109,6 +110,7 @@ def check_health() -> None:
     import single_instance_lease
 
     from . import core, foundation_state
+    import update_driver
     from .participant import MAX_FRAME
 
     if core.SCHEMA != 2 or foundation_state.VERSION != 1 or MAX_FRAME != 16384:
@@ -116,6 +118,11 @@ def check_health() -> None:
     for package, names in (
         (agent_procutil, ("native_daemon.ps1", "native_owned.ps1")),
         (single_instance_lease, ("operation.ps1",)),
+        (update_driver, ("participant.ps1", "foundation.ps1", "directory.ps1")),
     ):
         if any(not files(package).joinpath(name).is_file() for name in names):
             raise FoundationInputError("foundation is missing native custody assets")
+
+
+if __name__ == "__main__":
+    check_health()

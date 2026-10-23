@@ -929,7 +929,7 @@ already-merged PRs' branches):
 | `crash-diagnostics-stress.yml` | `schedule` (daily), `workflow_dispatch` | Stress-tests `context-handoff` crash-diagnostics paths. |
 | `agent-dispatch-pwsh-race-exhaustive.yml` | `schedule` (weekly), `workflow_dispatch` | Runs `agent-dispatch`'s multi-process `pwsh` mutex-race tests (self-skipped by default in `ci.yml`'s smoke lane) on both `ubuntu-latest` and `windows-latest` — deliberately its own workflow for the same reason as `context-handoff-exhaustive.yml`. |
 | `payload-cwd-contract.yml` | `schedule` (weekly), `workflow_dispatch` | Routing inventory only until hardened root-tools/native containers are enrolled. Native commands are preserved but explicitly disabled; no PR tests or passing native-evidence claim. |
-| `windows-coverage-rotation.yml` | Existing daily `schedule`, `workflow_dispatch` | Immutable-source hardened Linux full-plugin containers, with logs and portfolio-owned failure tracking. Windows execution is explicitly unavailable pending container capacity; Linux success does not qualify other platforms or unenrolled tiers. |
+| `windows-coverage-rotation.yml` | Existing daily `schedule`, `workflow_dispatch` | Immutable-source hardened Linux full-plugin containers, with logs and portfolio-owned failure tracking, including selection/preparation failure before outputs exist. Only scheduled or manual Dev runs update the shared tracker; other manual refs remain inspection-only. Windows execution is explicitly unavailable pending container capacity; Linux success does not qualify other platforms or unenrolled tiers. |
 | `ci-failure-fix-attempt.lock.yml` | `issues: [labeled]`, `workflow_dispatch` | Generated agentic-workflow (`gh-aw` compiled) that reacts to a labeled CI-failure tracking issue; also manually dispatchable with inputs. |
 
 The release reporter checks the optional fixer's workflow state once before
@@ -1083,7 +1083,15 @@ promotion correctness: `tools/promote_release.py`'s own bump computation
 already excludes a consumed changefile regardless of whether it still
 physically exists on `dev`). Don't expect one to follow within minutes of
 every promotion -- routine cleanup, not something that needs review, but
-it can take up to a day to appear.
+it can take up to a day to appear. Before committing or pushing a new cleanup,
+the trusted workflow completely pages open `dev` PRs. An owner-authored,
+same-repository `chore/purge-changefiles-<run>` PR with its matching workflow
+origin blocks another publication, including when it is draft or held. The
+job fails visibly with links for the existing cleanup owner; it does not
+merge, close or replace those PRs. Unavailable or invalid PR metadata also
+fails closed. Run-level serialization alone cannot prevent duplicate cleanup
+PRs after an earlier run times out waiting for checks. This source behavior
+becomes live only when the workflow's existing Main control owner adopts it.
 
 ### Previewing without waiting for a real promotion
 
@@ -1183,7 +1191,12 @@ never checks out or executes the PR's own code and never runs tests or requests
 review. The independent contents-read gate in the same trusted invocation can
 report the existing admission decision without approving a fork's code execution.
 On `synchronize`, admission and the admitted-owner scan run; the reminder retains
-its original event scope and one-time-comment behavior.
+its original event scope and one-time-comment behavior. The Dev source also
+omits the reminder job before runner allocation for owner-authored PRs, rather
+than allocating it only to return without posting. Its script retains the
+owner/signature checks as defense in depth. Adoption by the independently
+preserved Main workflow is a separate control change; a Dev merge alone does
+not reduce live Main reminder allocations.
 
 It recognizes `main-gate`'s own four legitimate automated-PR shapes (the
 release pipeline's own PR, a workflow-only bootstrap PR, and `rollback_release.py`'s
@@ -1453,4 +1466,5 @@ actually consumes them.
 - [`docs/install-contract.md`](install-contract.md) — what the marketplace
   vendors and the plugin-update vs. runtime-install distinction.
 - [`docs/patterns/mutable-dev-slot.md`](patterns/mutable-dev-slot.md) —
-  running unmerged code against the real deployed CLI.
+  immutable source-hashed development generations and legacy migration;
+  direct merged Dev deployment remains in #7028/#7029.

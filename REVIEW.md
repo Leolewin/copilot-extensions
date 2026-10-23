@@ -144,6 +144,13 @@ specifically when reviewing a pull request, not a replacement for them.
   Require path gating, a focused smoke contract, and a scheduled/manual
   exhaustive lane. Do not recommend pooling where real process boundaries
   are the behavior under test.
+- **Performance impact.** For launch, hook, callback, repeated-scan or
+  process-producing changes, apply CONTRIBUTING.md's Performance impact
+  contract and `docs/patterns/performance-measurement.md`. Check actual blocking
+  work and evidence reuse, not just resident counts or watchdog limits.
+  Instrumentation must not introduce synchronous export or per-event children.
+  Missing native measurements are not a passing budget; do not require private
+  execution artifacts or add effectful matrices to required unit-only CI.
 - **Cross-platform parity.** When a PR edits an installer/launcher `.sh` (or
   `.ps1`), flag a missing matching change to its `.ps1` (or `.sh`)
   counterpart.
@@ -200,11 +207,18 @@ specifically when reviewing a pull request, not a replacement for them.
   drain, promotion, or process-repair logic, check it against
   `docs/patterns/graceful-daemon-cutover.md`'s "Common review findings"
   checklist: overlapping cutover attempts must be serialized under one
-  lease/guard; a successor's promotion must be *confirmed* before its
-  predecessor retires (never the reverse); the drain boundary must close
+  lease/guard; on the preferred compatible path a successor's promotion must be
+  *confirmed* before its predecessor retires; the graceful drain boundary must close
   admission **and** wait out every already-admitted concurrent request, not
   just the periodic sweep; and any repair/self-heal path must re-validate its
   target's identity immediately before acting, not only at snapshot time.
+  Handoff is best effort: incompatible/unavailable or non-settling contracts
+  permit bounded cold takeover, including identity-checked forced retirement
+  before incoming readiness. Do not demand old-contract cooperation or a
+  zero-outage promise on that path. Require exact owned termination scope,
+  old-owner exit/write exclusion, durable recovery, consumer reconnect/retry
+  and truthful interrupted/unknown outcomes rather than a false exactly-once
+  guarantee. This does not waive PID/owner safety or admit unrelated reaping.
 - **PID-identity-bound destructive code needs a direct test.** Flag any
   change that terminates or reaps a process by PID without a dedicated unit
   test proving the terminator (a) matches only a live, identity-verified

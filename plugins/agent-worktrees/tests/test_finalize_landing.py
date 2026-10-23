@@ -95,7 +95,10 @@ def _topology_snapshot(root: Path) -> dict[Path, bytes]:
 
 
 @pytest.mark.parametrize(
-    "seed_fixture", ["_landing_seed", "_merged_landing_seed", "_handmade_landing_seed"],
+    "seed_fixture", [
+        "_landing_seed", "_merged_landing_seed", "_handmade_landing_seed",
+        "_cross_dev_reset_seed", "_cross_main_reset_seed", "_synced_landing_seed",
+    ],
 )
 def test_landing_copies_preserve_topology_and_isolate_mutations(tmp_path, request, seed_fixture):
     source = request.getfixturevalue(seed_fixture)
@@ -116,6 +119,39 @@ def test_landing_copies_preserve_topology_and_isolate_mutations(tmp_path, reques
             assert _git("rev-parse", "HEAD", cwd=env_copy.clone) == main == dev
             assert branch == f"worktree/{env_copy.worktree_id}"
             assert not (env_copy.tmp_path / "published-head").exists()
+        elif seed_fixture == "_synced_landing_seed":
+            head = (env_copy.tmp_path / "published-head").read_text(encoding="ascii")
+            tip = (env_copy.tmp_path / "reset-tip").read_text(encoding="ascii")
+            assert branch == env_copy.slug
+            assert _git("rev-parse", "HEAD", cwd=env_copy.clone) == head
+            assert _git("rev-parse", f"worktree/{env_copy.worktree_id}", cwd=env_copy.clone) == tip == main
+            assert _git("rev-parse", f"{head}~2", cwd=env_copy.clone) == _git(
+                "rev-parse", f"{tip}^", cwd=env_copy.clone,
+            )
+            assert main != dev
+            assert (env_copy.clone / "a.txt").read_text() == SQUASHED
+            assert not (env_copy.clone / "c.txt").exists()
+            history = _git(
+                "reflog", "show", "--format=%gs",
+                f"worktree/{env_copy.worktree_id}", cwd=env_copy.clone,
+            )
+            assert history.splitlines()[-1] == "branch: Created from origin/main"
+            assert history.splitlines()[0] == "branch: Reset to origin/main"
+            assert finalize_ref.creation_point(
+                f"worktree/{env_copy.worktree_id}", str(env_copy.clone),
+            ) == tip
+        elif seed_fixture in ("_cross_dev_reset_seed", "_cross_main_reset_seed"):
+            head = (env_copy.tmp_path / "published-head").read_text(encoding="ascii")
+            tip = (env_copy.tmp_path / "reset-tip").read_text(encoding="ascii")
+            assert branch == f"worktree/{env_copy.worktree_id}"
+            assert _git("rev-parse", "HEAD", cwd=env_copy.clone) == tip == main
+            assert _git("rev-parse", env_copy.slug, cwd=env_copy.clone) == head
+            history = _git("reflog", "show", "--format=%gs", branch, cwd=env_copy.clone)
+            assert history.splitlines()[-1] == "branch: Created from origin/dev"
+            assert "branch: Reset to origin/main" in history.splitlines()
+            assert finalize_ref.creation_point(
+                branch, str(env_copy.clone), published_bases=("refs/remotes/origin/main",),
+            ) == tip
         else:
             head = (env_copy.tmp_path / "published-head").read_text(encoding="ascii")
             assert _git("rev-parse", f"{head}~2", cwd=env_copy.clone) == main != dev
@@ -419,6 +455,86 @@ def test_explain_reports_every_base_and_check(merged_env, provider):
     assert report["landed"] is True and report["content_ref"] == f"worktree/{env.worktree_id}"
 
 
+@pytest.mark.parametrize("next_action", ["prune", "explain"])
+def test_explanation_checks_are_reused_only_inside_the_same_report(
+    merged_env, provider, monkeypatch, next_action,
+):
+    env = merged_env
+    provider.head_sha, provider.base_ref = env.head, "dev"
+    record = _record(env, head_sha=env.head, state="merged", number=7)
+    original = finalize_landing.landing
+    calls = []
+
+    def checked(branch, upstream, cwd, *, explain=False):
+        calls.append((branch, upstream, explain))
+        return original(branch, upstream, cwd, explain=explain)
+
+    monkeypatch.setattr(finalize_landing, "landing", checked)
+    expected = [
+        (f"worktree/{env.worktree_id}", f"refs/remotes/origin/{base}", True)
+        for base in ("main", "dev")
+    ]
+    report = finalize_landing.explain(record, _repo(), str(env.clone), str(env.clone))
+    assert report["landed"] is True
+    assert calls == expected
+
+    _git("commit", "-q", "--allow-empty", "-m", "unpublished after explanation", cwd=env.clone)
+    calls.clear()
+    if next_action == "prune":
+        ok, error = finalize._pr_finalize_precondition(
+            record, _repo(), str(env.clone), str(env.clone),
+        )
+        assert ok is False and "further commits" in error
+        assert calls == [(branch, upstream, False) for branch, upstream, _ in expected]
+    else:
+        report = finalize_landing.explain(record, _repo(), str(env.clone), str(env.clone))
+        assert report["landed"] is False
+        assert "further commits" in report["message"]
+        assert calls == expected
+
+
+@pytest.mark.parametrize("first_proof", ["ancestor", "cherry", "squash", "blobs"])
+def test_reused_explanation_checks_preserve_the_fast_path_message(
+    tmp_path, monkeypatch, first_proof,
+):
+    from agent_worktrees import finalize_open_pr_gate as gate
+
+    fields = ["ancestor", "cherry", "squash", "blobs"]
+    index = fields.index(first_proof)
+    complete = finalize_ref.Landing(
+        "task", "refs/remotes/origin/main",
+        **{name: position >= index for position, name in enumerate(fields)},
+    )
+    short = finalize_ref.Landing(
+        complete.ref, complete.upstream,
+        **{name: position == index for position, name in enumerate(fields[:index + 1])},
+    )
+    record = SimpleNamespace(
+        worktree_id="task", pr=SimpleNamespace(branch="feature/task", number=7),
+    )
+    monkeypatch.setattr(gate, "resolve_precondition_ref", lambda *a, **kw: "task")
+    monkeypatch.setattr(gate, "upstream_match_is_trustworthy", lambda *a, **kw: False)
+    monkeypatch.setattr(gate, "pr_merge_status", lambda *a, **kw: True)
+    monkeypatch.setattr(gate, "merged_content_exceeds", lambda *a, **kw: True)
+    monkeypatch.setattr(gate, "merged_pr_block_message", lambda *a, **kw: "unpublished")
+    monkeypatch.setattr(finalize_landing, "pr_base", lambda *a: "")
+    monkeypatch.setattr(finalize_landing, "creation_point", lambda *a, **kw: "base")
+    monkeypatch.setattr(finalize_landing.git_ops, "ref_exists", lambda *a, **kw: True)
+    monkeypatch.setattr(
+        finalize_landing, "landing",
+        lambda *a, explain=False: complete if explain else short,
+    )
+
+    _, expected, _ = finalize_landing.pr_content_landed(
+        record, _repo(), "task", cwd=str(tmp_path),
+    )
+    report = finalize_landing.explain(record, _repo(), str(tmp_path), str(tmp_path))
+
+    assert report["message"] == expected
+    assert report["checks"] == [complete.to_dict()]
+    assert all(getattr(complete, name) is True for name in fields[index:])
+
+
 # -- the creation point ----------------------------------------------------------------
 
 
@@ -460,6 +576,29 @@ def _sync_worktree_branch_to_a_newer_main(env) -> str:
     return tip
 
 
+@pytest.fixture(scope="session")
+def _synced_landing_seed(tmp_path_factory, _landing_seed) -> Path:
+    with _seed_directory(tmp_path_factory, "finalize-synced-landing") as (root, build):
+        if build:
+            with _published_seed_environment(tmp_path_factory):
+                copied = _copy_landing_env(_landing_seed, root)
+                head = _two_commit_change(copied.clone)
+                _git("checkout", "-q", "-b", copied.slug, cwd=copied.clone)
+                _squash_onto(copied.seed, "dev", SQUASHED)
+                tip = _sync_worktree_branch_to_a_newer_main(copied)
+                (root / "published-head").write_text(head, encoding="ascii")
+                (root / "reset-tip").write_text(tip, encoding="ascii")
+        return root
+
+
+@pytest.fixture
+def synced_landing_env(tmp_path, _synced_landing_seed) -> SimpleNamespace:
+    copied = _copy_landing_env(_synced_landing_seed, tmp_path)
+    copied.head = (tmp_path / "published-head").read_text(encoding="ascii")
+    copied.tip = (tmp_path / "reset-tip").read_text(encoding="ascii")
+    return copied
+
+
 def test_a_branch_only_synced_to_newer_remote_tips_carries_no_work(env, provider):
     """Like the creation point, a sync that only reset the branch to a later tip of
     its source (named in that source's own reflog) is published history; main is
@@ -481,12 +620,10 @@ def test_a_branch_only_synced_to_newer_remote_tips_carries_no_work(env, provider
 
 @pytest.mark.parametrize("later_work", ["none", "commit", "empty", "revert", "other-pr-branch"])
 def test_a_proven_remote_reset_after_merged_work_is_published(
-    env: SimpleNamespace, provider: SimpleNamespace, later_work: str,
+    synced_landing_env: SimpleNamespace, provider: SimpleNamespace, later_work: str,
 ) -> None:
-    head = _two_commit_change(env.clone)
-    _git("checkout", "-q", "-b", env.slug, cwd=env.clone)
-    _squash_onto(env.seed, "dev", SQUASHED)
-    tip = _sync_worktree_branch_to_a_newer_main(env)
+    env = synced_landing_env
+    head, tip = env.head, env.tip
     _git("checkout", "-q", f"worktree/{env.worktree_id}", cwd=env.clone)
     if later_work in ("commit", "revert"):
         _commit(env.clone, "mine.txt", "later local work\n", "after the published reset")
@@ -514,12 +651,10 @@ def test_a_proven_remote_reset_after_merged_work_is_published(
 
 
 def test_a_later_reset_without_remote_tip_proof_does_not_certify_work(
-    env: SimpleNamespace, provider: SimpleNamespace,
+    synced_landing_env: SimpleNamespace, provider: SimpleNamespace,
 ) -> None:
-    head = _two_commit_change(env.clone)
-    _git("checkout", "-q", "-b", env.slug, cwd=env.clone)
-    _squash_onto(env.seed, "dev", SQUASHED)
-    tip = _sync_worktree_branch_to_a_newer_main(env)
+    env = synced_landing_env
+    head, tip = env.head, env.tip
     _rewrite_main(env)
     _git("fetch", "-q", "-f", "origin", cwd=env.clone)
     _git("reflog", "expire", "--expire=now", "refs/remotes/origin/main", cwd=env.clone)
@@ -545,12 +680,45 @@ def _historical_cross_base_reset(env: SimpleNamespace, merged_base: str = "dev")
     return head, tip
 
 
+def _cross_reset_seed(tmp_path_factory, source: Path, base: str) -> Path:
+    with _seed_directory(tmp_path_factory, f"finalize-cross-{base}") as (root, build):
+        if build:
+            with _published_seed_environment(tmp_path_factory):
+                copied = _copy_landing_env(source, root)
+                head, tip = _historical_cross_base_reset(copied, base)
+                (root / "published-head").write_text(head, encoding="ascii")
+                (root / "reset-tip").write_text(tip, encoding="ascii")
+        return root
+
+
+@pytest.fixture(scope="session")
+def _cross_dev_reset_seed(tmp_path_factory, _landing_seed) -> Path:
+    return _cross_reset_seed(tmp_path_factory, _landing_seed, "dev")
+
+
+@pytest.fixture(scope="session")
+def _cross_main_reset_seed(tmp_path_factory, _landing_seed) -> Path:
+    return _cross_reset_seed(tmp_path_factory, _landing_seed, "main")
+
+
+@pytest.fixture
+def cross_base_env(tmp_path, request) -> SimpleNamespace:
+    base = request.node.callspec.params.get("pr_base", "dev")
+    source = request.getfixturevalue(f"_cross_{base}_reset_seed")
+    copied = _copy_landing_env(source, tmp_path)
+    copied.head = (tmp_path / "published-head").read_text(encoding="ascii")
+    copied.tip = (tmp_path / "reset-tip").read_text(encoding="ascii")
+    return copied
+
+
 @pytest.mark.parametrize("later_work", ["none", "commit", "empty", "revert", "other-pr-branch"])
 @pytest.mark.parametrize(("default_branch", "pr_base"), [("main", "dev"), ("dev", "main")])
 def test_a_historical_reset_from_dev_to_the_release_base(
-    env: SimpleNamespace, provider: SimpleNamespace, later_work: str, default_branch: str, pr_base: str,
+    cross_base_env: SimpleNamespace, provider: SimpleNamespace,
+    later_work: str, default_branch: str, pr_base: str,
 ) -> None:
-    head, tip = _historical_cross_base_reset(env, pr_base)
+    env = cross_base_env
+    head, tip = env.head, env.tip
     if later_work in ("commit", "revert"):
         _commit(env.clone, "mine.txt", "later local work\n", "after the release reset")
     elif later_work == "empty":
@@ -582,9 +750,10 @@ def test_a_historical_reset_from_dev_to_the_release_base(
 
 @pytest.mark.parametrize("invalid_proof", ["missing", "shadow", "other-remote", "unqualified"])
 def test_a_cross_base_reset_requires_an_unambiguous_qualified_base(
-    env: SimpleNamespace, provider: SimpleNamespace, invalid_proof: str,
+    cross_base_env: SimpleNamespace, provider: SimpleNamespace, invalid_proof: str,
 ) -> None:
-    head, tip = _historical_cross_base_reset(env)
+    env = cross_base_env
+    head, tip = env.head, env.tip
     _rewrite_main(env)
     _git("fetch", "-q", "-f", "origin", cwd=env.clone)
     if invalid_proof in ("missing", "other-remote"):
