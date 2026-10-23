@@ -175,6 +175,31 @@ def test_foreign_or_missing_launch_directory_is_refused(directory_args):
         m._build_launch_cmd(_config(), _args(directory_args), "/selected worktree")
 
 
+@pytest.mark.parametrize("option", ["-p", "--prompt", "--agent", "--add-dir", "--log-dir"])
+@pytest.mark.parametrize("value", ["-C", "-C=/foreign", "--"])
+def test_directory_binding_preserves_literal_native_option_values(option, value):
+    command = _inner_command(m._build_launch_cmd(
+        _config(), _args([option, value]), "/selected worktree",
+    ))
+    assert command[command.index(option) + 1] == value
+    assert command.count("-C=/selected worktree") == 1
+
+
+def test_directory_binding_preserves_end_of_options_data():
+    from agent_worktrees.process_launcher import bind_execution_directory
+
+    command = bind_execution_directory(
+        ["copilot", "--", "-C", "/literal-data"], "/selected", m.LaunchPreflightError,
+    )
+    assert command == ["copilot", "-C=/selected", "--", "-C", "/literal-data"]
+
+
+@pytest.mark.parametrize("option", ["--prompt", "--model", "--add-dir"])
+def test_directory_binding_does_not_supply_a_missing_option_value(option):
+    with pytest.raises(m.LaunchPreflightError, match="requires a value"):
+        m._build_launch_cmd(_config(), _args([option]), "/selected worktree")
+
+
 @pytest.mark.parametrize("recovery", [False, True])
 @pytest.mark.parametrize("prefix", [
     ["pwsh.exe", "-NoProfile", "-C", "copilot"],
@@ -1318,10 +1343,11 @@ def test_default_setup_ps1_double_dash_copilot_args_not_mis_bound_positionally(
 @pytest.mark.skipif(os.name != "nt", reason="native PowerShell-to-command argument forwarding")
 @pytest.mark.parametrize("command_flag", ["-C", "-Command"])
 @pytest.mark.parametrize("directory_name", ["selected worktree", "worktree's $(literal)"])
+@pytest.mark.parametrize("prompt", ["literal '$value'", "-C", "-C=/foreign"])
 def test_custom_powershell_command_forwards_selected_directory(
-    tmp_path, monkeypatch, command_flag, directory_name,
+    tmp_path, monkeypatch, command_flag, directory_name, prompt,
 ):
-    from agent_procutil import no_window_kwargs
+    from agent_procutil import owned_process
     from agent_worktrees import installer
 
     shell = shutil.which("pwsh")
@@ -1348,19 +1374,18 @@ def test_custom_powershell_command_forwards_selected_directory(
     )
     command = m._build_launch_cmd(
         _config({"linux": [shell, "-NoProfile", command_flag, "copilot"]}),
-        _args(["--resume=synthetic-anchor-origin", "--prompt", "literal '$value'"]),
+        _args(["--resume=synthetic-anchor-origin", "--prompt", prompt]),
         str(selected),
     )
     command[0] = shell
-    completed = subprocess.run(
-        command, cwd=selected,
-        env={**os.environ, "PATH": str(bin_dir), "NATIVE_ARGV_MARKER": str(marker)},
-        capture_output=True, text=True, timeout=20, **no_window_kwargs(),
-    )
+    monkeypatch.chdir(selected)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    monkeypatch.setenv("NATIVE_ARGV_MARKER", str(marker))
+    completed = owned_process.run_owned(command, timeout=20)
     assert completed.returncode == 0, completed.stdout + completed.stderr
     received = json.loads(marker.read_text(encoding="utf-8"))
     assert received == [
-        "--resume=synthetic-anchor-origin", "--prompt", "literal '$value'",
+        "--resume=synthetic-anchor-origin", "--prompt", prompt,
         f"-C={selected}", "--allow-all", "--experimental",
     ]
 

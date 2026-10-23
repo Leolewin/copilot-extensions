@@ -8,6 +8,22 @@ from pathlib import Path, PureWindowsPath
 
 from . import installer
 
+# Required-value options from the native CLI contract consume even flag-shaped data.
+_NATIVE_VALUE_OPTIONS = {
+    "-i", "--interactive", "-p", "--prompt", "--model", "--reasoning-effort",
+    "--context", "--auto-tier", "--agent", "-n", "--name", "--session-id",
+    "--log-dir", "--extension-sdk-path", "--log-level", "--stream", "--output-format",
+    "--add-dir", "--attachment", "--disable-mcp-server", "--add-github-mcp-toolset",
+    "--add-github-mcp-tool", "--plugin-dir", "--additional-mcp-config", "--mcp-github-auth",
+    "--max-autopilot-continues", "--mode", "--environment-host", "--environment-compute-id",
+    "--dynamic-retrieval", "--enable-mcp-server", "--max-ai-credits", "--usage-output-file",
+}
+_SETUP_VALUE_OPTIONS = {
+    "-machine", "-setuphook", "-configroot", "-runtimepython", "-sessionpath",
+    "-envscript", "-copilotpath", "--machine", "--setup-hook", "--config-root",
+    "--runtime-python", "--session-path", "--env-script", "--copilot-path",
+}
+
 
 def _normalized_setup_index(command) -> int | None:
     scripts = installer.install_dir() / "scripts"
@@ -77,6 +93,16 @@ def bind_execution_directory(command, work_dir: str, error_type, *, passthrough_
     result = list(command[:index])
     while index < len(command):
         arg = command[index]
+        if arg == "--":
+            break
+        if arg in _NATIVE_VALUE_OPTIONS or (
+            normalized is not None and arg.casefold() in _SETUP_VALUE_OPTIONS
+        ):
+            if index + 1 >= len(command):
+                raise error_type(f"Copilot launch option {arg} requires a value")
+            result.extend(command[index:index + 2])
+            index += 2
+            continue
         setup_flag = normalized is not None and (
             (command[normalized].endswith(".ps1") and arg.casefold() == "-executiondirectory")
             or (command[normalized].endswith(".sh") and arg == "--execution-directory")
@@ -95,11 +121,12 @@ def bind_execution_directory(command, work_dir: str, error_type, *, passthrough_
         else:
             result.append(arg)
         index += 1
+    literal_tail = command[index:]
     normalized = _normalized_setup_index(result)
     if normalized is not None:
         flag = "-ExecutionDirectory" if result[normalized].endswith(".ps1") else "--execution-directory"
-        return [*result[:normalized + 1], flag, work_dir, *result[normalized + 1:]]
-    return [*result, f"-C={work_dir}"]
+        return [*result[:normalized + 1], flag, work_dir, *result[normalized + 1:], *literal_tail]
+    return [*result, f"-C={work_dir}", *literal_tail]
 
 
 def quote_powershell_command(command, error_type):

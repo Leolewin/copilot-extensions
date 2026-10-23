@@ -49,6 +49,8 @@ New native launches explicitly select the execution directory, including when
 resuming a conversation originally created in an anchor or another directory.
 A conflicting Copilot `-C` override is refused; a custom launcher's prefix
 options (such as PowerShell's `-C` command abbreviation) remain unchanged.
+Required option values remain literal even when they look like `-C` flags;
+an end-of-options tail is not rewritten as directory selection.
 Direct PowerShell command-string launches encode the final native arguments
 as quoted PowerShell literals, preserving spaces, apostrophes and literal
 variable syntax through the command-source boundary. Opaque compound commands

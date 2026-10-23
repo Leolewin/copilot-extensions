@@ -373,3 +373,22 @@ restarted or updated to force acceptance. No productive rollout is performed.
 - The normalized PowerShell fixture now uses the same exact-child-argv proof
   while retaining its actual child-directory assertion. The complete launch
   portfolio passes 111 cases in 31.54 seconds, with unchanged test limits.
+
+### 2026-10-23 - Literal option-value preservation
+
+- Closed the next review's summary-level argument-handling defect:
+  directory normalization now respects the native CLI's required-value
+  options and normalized setup's own value parameters. A prompt, agent or
+  path value that resembles `-C` remains data, not another directory flag.
+  Missing required values fail explicitly rather than consuming the injected
+  directory; the end-of-options tail is retained.
+- Grounded the option arity in the installed native CLI's `--help`, without
+  adding a runtime help invocation or configurable parser. Native child
+  controls now include literal `-C` and `-C=/foreign` prompt values as well
+  as exact directory/resume boundaries.
+- The expanded first combined run exposed a native-child timeout whose
+  `subprocess.run` cleanup waited on inherited descendant pipes. The fixture
+  now uses the existing caller-owned process helper with the same 20-second
+  deadline, so descendant cleanup is owned instead of relying on leader-only
+  termination. All 138 launch cases pass in 49.43 seconds under the unchanged
+  suite containment; no failed run was represented as passing evidence.
