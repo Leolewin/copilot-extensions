@@ -311,6 +311,50 @@ def test_detach_returns_acceptance_without_waiting(tmp_path, monkeypatch, capsys
     assert json.loads(capsys.readouterr().out)["action"] == "accepted"
 
 
+def test_automatic_worker_refusal_is_durable_without_foreground_fallback(
+    tmp_path, monkeypatch, capsys,
+):
+    import agent_procutil
+    import update_driver as driver
+    from update_driver import core
+
+    home = tmp_path / "home"
+    home.mkdir()
+    for key in ("HOME", "USERPROFILE", "AGENT_HOME"):
+        monkeypatch.setenv(key, str(home))
+    queue_root = home / ".copilot-extensions" / "update-driver"
+    monkeypatch.setattr(core, "default_root", lambda: queue_root)
+    monkeypatch.setattr(driver, "borrowed_custody", lambda: None)
+    monkeypatch.setattr(boundary.cfg, "active_project", lambda: "fixture-project")
+    monkeypatch.setattr(boundary.cfg, "install_dir", lambda: tmp_path / "runtime")
+    monkeypatch.setattr(boundary.update_driver_cli, "_invocation_cwd", lambda: tmp_path)
+    monkeypatch.setattr(boundary.update_driver_cli, "_request_context", lambda: ())
+    monkeypatch.setattr(driver, "runtime_command", lambda *a: (
+        (sys.executable, "-c", "raise AssertionError('no foreground execution')"), {},
+    ))
+    seen = []
+
+    def refuse(*args, **kwargs):
+        seen.append(kwargs)
+        raise agent_procutil.DaemonSpawnError("independent lifetime unavailable")
+
+    monkeypatch.setattr(agent_procutil, "spawn_daemon", refuse)
+    monkeypatch.setattr(driver, "wait", lambda *a, **kw: pytest.fail("rejected caller waited"))
+    monkeypatch.setattr(launch, "_execute", lambda *a: pytest.fail("foreground installer fallback"))
+    assert launch.cmd_launch_update(_args(phase="automatic", detach=True)) == 1
+    output = capsys.readouterr()
+    assert json.loads(output.out)["reason"] == "update-driver"
+    assert "accepted" not in output.out
+    assert "worker launch failed" in output.err
+    assert len(seen) == 1
+    assert seen[0]["breakaway"] is True and seen[0]["contained_fallback"] is False
+    request, = driver.status(root=queue_root)
+    assert request.state == "pending" and request.exit_code is None
+    assert request.error == "worker launch failed: DaemonSpawnError"
+    assert request.spec.backend == "engine-launch-update"
+    assert request.spec.argv == ("automatic",) and request.spec.project == "fixture-project"
+
+
 @pytest.mark.parametrize("phase", ["bootstrap", "reconcile"])
 def test_actual_fixed_request_has_durable_result_on_empty_inventory(tmp_path, monkeypatch, phase):
     from agent_procutil.owned_process import run_owned

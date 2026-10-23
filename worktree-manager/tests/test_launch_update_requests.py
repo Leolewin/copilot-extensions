@@ -16,7 +16,8 @@ import pytest
 
 @pytest.mark.parametrize("shell", ["pwsh", "powershell", "bash"])
 @pytest.mark.parametrize("mode", [
-    "detach", "wait", "no-update", "no-reconcile", "failed", "old-engine", "no-project",
+    "detach", "wait", "no-update", "no-reconcile", "failed", "worker-refused", "old-engine",
+    "no-project",
 ])
 def test_native_launch_submits_fixed_phases_and_preserves_progress(tmp_path, shell, mode):
     if shell == "bash" and os.name != "posix":
@@ -28,6 +29,7 @@ def test_native_launch_submits_fixed_phases_and_preserves_progress(tmp_path, she
     package.mkdir()
     (package / "__init__.py").write_text("")
     calls = tmp_path / "calls.jsonl"
+    handoff = tmp_path / "handoff"
     (package / "__main__.py").write_text(
         "import json,sys\nfrom pathlib import Path\n"
         f"path=Path({str(calls)!r})\n"
@@ -39,6 +41,8 @@ def test_native_launch_submits_fixed_phases_and_preserves_progress(tmp_path, she
         f"if {mode!r}=='old-engine':\n"
         " print('unrecognized command: launch-update',file=sys.stderr); sys.exit(2)\n"
         "print('native-progress',file=sys.stderr,flush=True)\n"
+        f"if {mode!r}=='worker-refused':\n"
+        " print(json.dumps(dict(ok=False,reason='update-driver',message='worker launch failed: DaemonSpawnError'))); sys.exit(1)\n"
         f"sys.exit(7 if {mode!r}=='failed' else 0)\n",
     )
     home = tmp_path / "home"
@@ -75,6 +79,7 @@ def test_native_launch_submits_fixed_phases_and_preserves_progress(tmp_path, she
             f"function Resolve-RuntimePython {{ '{python}' }}",
             "Invoke-UpdateApply -WithReconcile",
             "Invoke-UpdateApply -WithReconcile",
+            f"[IO.File]::WriteAllText('{handoff}','handoff')",
             "if($ErrorActionPreference -ne 'Stop' -or -not $PSNativeCommandUseErrorActionPreference){throw 'preference leaked'}",
         ])
         fixture = tmp_path / "launch.ps1"
@@ -97,6 +102,7 @@ def test_native_launch_submits_fixed_phases_and_preserves_progress(tmp_path, she
             functions, function("_run_launch_request"), function("invoke_update_apply"),
             f"resolve_runtime_python() {{ printf '%s\\n' {shlex.quote(python)}; }}",
             "invoke_update_apply 1", "invoke_update_apply 1",
+            f"printf 'handoff' > {shlex.quote(str(handoff))}",
         ])
         fixture = tmp_path / "launch.sh"
         fixture.write_text(script)
@@ -106,6 +112,7 @@ def test_native_launch_submits_fixed_phases_and_preserves_progress(tmp_path, she
         **({"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}),
     )
     assert result.returncode == 0, result.stdout + result.stderr
+    assert handoff.read_text() == "handoff"
     assert result.stdout == "" and result.stderr == ""
     observed = [
         json.loads(line)[0 if mode == "no-project" else 2:]
@@ -129,6 +136,10 @@ def test_native_launch_submits_fixed_phases_and_preserves_progress(tmp_path, she
         assert "unrecognized command: launch-update" in report
         assert "failed (exit 2)" in report
         assert all(call[0] == "launch-update" for call in observed)
+    elif mode == "worker-refused":
+        assert "worker launch failed: DaemonSpawnError" in report
+        assert "failed (exit 1)" in report
+        assert "accepted" not in report
     else:
         assert "native-progress" in report
         assert ("failed (exit 7)" if mode == "failed" else "done (exit 0)") in report

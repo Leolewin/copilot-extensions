@@ -48,23 +48,23 @@ no-new-service mechanism proved insufficient for the Windows lifetime guarantee.
 The source-only broker amendment below supersedes that mechanism without
 changing dependency policy or authorizing installed mutation.
 
-**Current prerequisite:** the launch driver owns the follow-up #6859 bug.
-#6918 is merged, and historical authorship is not an active implementation
-hold. Native qualification exposed a check that confused any ambient Windows
-Job with the caller's cleanup Job. The candidate repair retains authenticated
-identities, caller-membership refusal and confirmed cleanup. Its real consumer
-survives closing two nested caller Jobs, but review identified an unproven
-topology: a candidate can share an outer cleanup Job while having a different
-immediate Job. The immediate-Job query cannot attest escape from that ancestor.
-The repair is held as a draft; no lifetime-check waiver or successful adoption
-is authorized. The operator approved source-level redesign around an
-independently managed Windows launch broker, with deployment separately gated.
-That supersedes the initial no-new-service mechanism, not the responsive-launch
-intent. A reviewed design amendment precedes broker implementation. Review also
-requires deadline checks during census,
-retryable descendant-handle custody on failed cleanup, and deterministic PID
-fixtures. Review, merge, containing-source requalification and rollout remain
-open. No installed patch or host service change is implied.
+**Current delivery:** the operator selected scheduling-only completion of
+#7788. It submits optional work through the already-merged canonical execution
+driver and does not change daemon admission, add a broker or introduce another
+mutation owner. The canonical Windows implementation refuses a bootstrap or
+resident still in any Job. A rejected worker must remain a visible durable
+failure, never a successful acceptance or foreground-installer fallback; the
+launcher can still hand off on its healthy retained runtime.
+
+The same driver retains independent ownership of #6859 and draft #7833.
+#6918 is merged, and neither its historical author nor another PR's delivery
+is a dependency of #7788. The immediate-Job inference and new Scheduled Task
+design belong to that separate repair, not the scheduling diff. Its reviewed
+contract, failed candidates, native qualification, generation retention and
+installer integration remain open there without a lifetime-check waiver or
+deployment authorization. Historical journal entries below record the former
+broader hold; the explicit scheduling-only decision supersedes that delivery
+coupling, not the independent repair's technical gates.
 
 ## Request
 
@@ -98,6 +98,11 @@ synthetic task registration and cleanup". This permits only a credential-free
 probe on an ephemeral Windows CI runner. It does not permit task registration
 on shared hosts, host updates or deployment.
 
+Merge-scope form selection (verbatim): `scheduling-only`.
+The selected option was "Qualify and merge the scheduling change; keep the
+broker redesign separately tracked and owned". This retains the canonical
+execution driver's lifetime refusals and does not authorize installed rollout.
+
 ## Plan
 
 ### Phase 1 - Reviewed contract
@@ -112,9 +117,10 @@ the requested coordinated-background behavior.
 - [x] Review the [independent Windows broker amendment](windows-launch-broker.md)
   before implementing its lifecycle and consumer integration. No deployment is
   implied.
-- [ ] Repair the #6859 follow-up in owned source, then requalify the containing
-  launch change. _(Operator-directed prerequisite; implementation mechanism is
-  agent-recommended.)_
+- [x] Transfer the independent broker repair, its installer integration and
+  lifetime qualification to separately owned #6859/#7833 under the reviewed
+  [broker contract](windows-launch-broker.md). They are not dependencies of the
+  scheduling-only #7788; no repair or qualification is claimed complete.
 - [x] Move optional stage/bootstrap/reconcile work off the healthy handoff path
   on both PowerShell and Bash; remove the join and inline-download fallback
   from ordinary launches. Preserve explicit blocking recovery behavior.
@@ -159,10 +165,10 @@ All detailed scenarios below are **agent-recommended** acceptance checks.
 - [ ] Exercise exact argv/environment, admission refusal, malformed plans,
   failed spawn, failed installer, opt-outs and explicit blocking mode.
 - [ ] Prove first-use/missing-prerequisite handling in an isolated fresh home.
-- [ ] On Windows, exercise the actual production worker spawn from a
-  kill-on-close Job, close caller containment after acknowledged dispatch,
-  and independently observe continued maintenance. Verify bounded-child
-  control reaping, no visible console/focus change, and owned-tree cleanup.
+- [x] Transfer Windows independent broker activation, all-caller-Job survival,
+  native control/desktop observation and installer lifecycle qualification to
+  #6859/#7833. The scheduling change retains existing strict admission; verify
+  that its refusal produces no accepted receipt or foreground fallback.
 - [ ] Exercise native POSIX handoff, owner exit and pending-request delivery.
 - [ ] Run targeted contained suites, lint, install-contract and source guards;
   record native/live lanes separately from mocked wiring.
@@ -171,9 +177,9 @@ All detailed scenarios below are **agent-recommended** acceptance checks.
 
 ## Proposal
 
-The initial no-new-service mechanism is superseded only for the Windows
-independent-lifetime broker by the explicit source-redesign authorization.
-No periodic updater or new maintenance scheduler is proposed. The launcher submits optional
+The scheduling change adds no service, periodic updater or maintenance queue.
+The independently authorized Windows broker redesign remains a separate
+tracked objective. The launcher submits optional
 work to its installed owner's bounded coordinated maintenance path and proceeds
 on the healthy retained runtime. The owner drains admitted requests using the
 existing planners/installers and then exits. Coordination must cover explicit
@@ -624,3 +630,34 @@ repository history.
   retirement/fixture-cleanup failures, before installer integration or default
   replacement. Historical native passes qualify only their recorded source.
   No shared-host registration, update, restart or rollout occurred.
+
+### 2026-10-22 - Drive scheduling-only delivery through review
+
+- The operator explicitly selected `scheduling-only`: qualify and merge #7788
+  using the existing execution driver, retaining #6859/#7833 as a separately
+  owned repair. The current target already refuses a broker bootstrap or
+  resident in any Job; #7788 does not change that admission code or install a
+  Scheduled Task. This supersedes the prior containing-PR hold, not a lifetime
+  check or the independent broker's remaining qualification gates.
+- Rebased the owned scheduling branch onto current `dev`, retaining peer
+  effort-index additions and the unrelated native post-exit diagnostic fix.
+  A local backup preserves the previous published tip. No other contributor's
+  open PR is adopted as a delivery dependency.
+- Added a real canonical-driver refusal contract: rejected worker startup
+  returns no accepted receipt, retains a pending request and durable error,
+  preserves strict `contained_fallback=False` admission and never executes an
+  installer in the foreground. Native launcher controls also demonstrate
+  handoff after that refusal and preserve logged failure details.
+- The composed Windows scheduling slice passed 163 cases with 20 explicit
+  platform/lifetime skips and confirmed sandbox retirement. The unchanged
+  driver's equivalence, stronger-request identity, custody, contention and
+  failure contracts passed 34 cases with one native capability skip. Install
+  contract and touched-source lint passed. An earlier run reported machine
+  environment drift and is not counted as passing; no host configuration was
+  rolled back.
+- Added a manual targeted mode to the existing hardened Linux integration
+  route for Worktrees and Manager. It retains exact candidate pinning,
+  dependency admission and network-isolated execution, records the actual
+  selector/outcome, and cannot file the full-portfolio failure tracker.
+  Scheduled nine-plugin coverage and disabled Windows rotation are unchanged.
+  Native Linux execution, final review and required PR CI remain pending.

@@ -4,6 +4,10 @@ Parent contract: [Coordinated Launch Maintenance](README.md).
 Tracking: #6859 and #7694. This is a proposed source design, not an installed
 service, successful qualification or permission to change a host.
 
+The operator's `scheduling-only` decision separates this owned repair
+(#6859/#7833) from #7788's delivery. No gate below is waived or implied complete;
+the scheduling PR retains the existing execution driver's lifetime refusals.
+
 ## Authority and intent
 
 The operator selected `source-redesign`: "Authorize the source-level broker
