@@ -100,7 +100,12 @@ def bind_execution_directory(command, work_dir: str, error_type, *, passthrough_
         ):
             if index + 1 >= len(command):
                 raise error_type(f"Copilot launch option {arg} requires a value")
-            result.extend(command[index:index + 2])
+            value = command[index + 1]
+            if normalized is not None and arg in _NATIVE_VALUE_OPTIONS and value.startswith("-"):
+                native_option = {"-p": "--prompt", "-i": "--interactive", "-n": "--name"}.get(arg, arg)
+                result.append(f"{native_option}={value}")
+            else:
+                result.extend(command[index:index + 2])
             index += 2
             continue
         setup_flag = normalized is not None and (

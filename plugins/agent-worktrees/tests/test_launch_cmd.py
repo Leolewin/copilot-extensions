@@ -1433,7 +1433,12 @@ def test_bash_command_template_reaches_native_child(tmp_path, command_name):
 
 
 @pytest.mark.skipif(os.name != "nt", reason="native PowerShell-to-command argument forwarding")
-def test_pinned_resume_directory_survives_normalized_powershell_launch(tmp_path, monkeypatch):
+@pytest.mark.parametrize("prompt_option,prompt", [
+    ("--prompt", None), ("--prompt", "-C"), ("-p", "-C"),
+])
+def test_pinned_resume_directory_survives_normalized_powershell_launch(
+    tmp_path, monkeypatch, prompt_option, prompt,
+):
     from agent_procutil import no_window_kwargs
     from agent_worktrees import installer
 
@@ -1481,9 +1486,10 @@ def test_pinned_resume_directory_survives_normalized_powershell_launch(tmp_path,
     config = _config({"linux": [
         "pwsh.exe", "-NoProfile", "-NoLogo", "-File", str(setup), "-Machine", "test", "-Recovery",
     ]})
-    command = _inner_command(m._build_launch_cmd(
-        config, _args(["--resume=synthetic-anchor-origin"]), str(selected),
-    ))
+    arguments = ["--resume=synthetic-anchor-origin"]
+    if prompt is not None:
+        arguments += [prompt_option, prompt]
+    command = _inner_command(m._build_launch_cmd(config, _args(arguments), str(selected)))
     completed = subprocess.run(
         [shell, "-NoProfile", "-NoLogo", "-File", str(staged), "--", *command],
         cwd=selected, env=env, capture_output=True, text=True, timeout=20,
@@ -1495,6 +1501,8 @@ def test_pinned_resume_directory_survives_normalized_powershell_launch(tmp_path,
     assert received.count("-C") == 1
     assert received[received.index("-C") + 1] == str(selected)
     assert "--resume=synthetic-anchor-origin" in received
+    if prompt is not None:
+        assert f"--prompt={prompt}" in received
     assert Path(cwd_marker.read_text(encoding="utf-8").strip()) == selected
 
 

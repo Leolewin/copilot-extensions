@@ -392,3 +392,9 @@ restarted or updated to force acceptance. No productive rollout is performed.
   deadline, so descendant cleanup is owned instead of relying on leader-only
   termination. All 138 launch cases pass in 49.43 seconds under the unchanged
   suite containment; no failed run was represented as passing evidence.
+- A further exact-native control reproduced the normalized PowerShell
+  parameter collision for a literal `-C` prompt value. The setup boundary now
+  uses the equivalent long-option inline form for flag-shaped native values,
+  leaving its own parameters intact. Both `--prompt` and `-p` retain the
+  literal value while Copilot receives the selected directory separately.
+  All 140 launch cases pass in 49.05 seconds.
