@@ -149,6 +149,15 @@ else:
     enqueue_ordinary_request()
 ```
 
+Short Unix endpoints retain their existing location under the execution root.
+If that pathname exceeds the native byte limit, the same witness instead owns
+a short-lived, user-private temporary directory and removes it when the witness
+closes. Clients verify that directory's owner and private permissions; the
+authenticated execution root and request identity remain unchanged. No queue
+is relocated, second owner created, or capability written to a file. A
+temporary-folder configuration that cannot provide a short endpoint refuses
+explicitly rather than weakening authentication or selecting another queue.
+
 `borrowed_custody(root=None, environ=None)` returns None only for an absent
 witness; missing-required, malformed, forged, wrong-space, or stale evidence
 raises `ParticipantError`. `participant(root=None, request_id=None,

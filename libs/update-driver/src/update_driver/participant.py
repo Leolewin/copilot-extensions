@@ -11,6 +11,9 @@ import hashlib
 import hmac
 import os
 import secrets
+import stat
+import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -24,10 +27,38 @@ MAX_FRAME = 16384
 IPC_TIMEOUT = 2.0
 _current_custody = ContextVar("update_driver_participant_custody", default=None)
 _environment_guard = threading.Lock()
+_UNIX_SOCKET_LIMIT = 108 if sys.platform.startswith("linux") else 104
 
 
 class ParticipantError(RuntimeError):
     """Borrowed transaction authority was not proved or is no longer live."""
+
+
+def _unix_socket_address(root: Path) -> tuple[str, tempfile.TemporaryDirectory | None]:
+    address = str(root / f"w-{uuid.uuid4().hex[:12]}.sock")
+    if len(os.fsencode(address)) < _UNIX_SOCKET_LIMIT:
+        return address, None
+    directory = tempfile.TemporaryDirectory(prefix="udw-")
+    address = str(Path(directory.name) / "s")
+    if len(os.fsencode(address)) >= _UNIX_SOCKET_LIMIT:
+        directory.cleanup()
+        raise ParticipantError("private temporary endpoint exceeds the native socket limit")
+    return address, directory
+
+
+def _validate_unix_address(address: str, root: Path) -> None:
+    path = Path(address)
+    if len(os.fsencode(address)) >= _UNIX_SOCKET_LIMIT:
+        raise ParticipantError("participant endpoint exceeds the native socket limit")
+    if path.parent == root and path.name.startswith("w-"):
+        return
+    info = path.parent.lstat()
+    if (
+        not path.is_absolute() or path.name != "s" or not path.parent.name.startswith("udw-")
+        or not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid()
+        or stat.S_IMODE(info.st_mode) & 0o077
+    ):
+        raise ParticipantError("participant endpoint is not in an owned private directory")
 
 
 def _send(connection, payload: dict) -> None:
@@ -86,13 +117,19 @@ class Witness:
         self.root, self.request_id = str(root), request_id
         self.key = secrets.token_bytes(32)
         self.family = "AF_PIPE" if os.name == "nt" else "AF_UNIX"
-        self.address = (
-            rf"\\.\pipe\update-driver-{uuid.uuid4().hex}" if os.name == "nt"
-            else str(root / f"w-{uuid.uuid4().hex[:12]}.sock")
-        )
+        self._socket_directory = None
+        if os.name == "nt":
+            self.address = rf"\\.\pipe\update-driver-{uuid.uuid4().hex}"
+        else:
+            self.address, self._socket_directory = _unix_socket_address(root)
         # Authentication uses bounded, pickle-free frames below. The stdlib
         # Listener auth handshake can block indefinitely on an abandoned pipe.
-        self.listener = Listener(self.address, family=self.family, authkey=None)
+        try:
+            self.listener = Listener(self.address, family=self.family, authkey=None)
+        except BaseException:
+            if self._socket_directory is not None:
+                self._socket_directory.cleanup()
+            raise
         self.active = threading.Event()
         self.active.set()
         self.guard = threading.Lock()
@@ -180,6 +217,8 @@ class Witness:
             for connection in tuple(self.connections):
                 connection.close()
             self.connections.clear()
+        if self._socket_directory is not None:
+            self._socket_directory.cleanup()
         if unsettled:
             raise ParticipantError("transaction returned with unclosed participants")
 
@@ -211,8 +250,8 @@ class BorrowedCustody:
             if os.name == "nt":
                 if not address.startswith(r"\\.\pipe\update-driver-"):
                     raise ParticipantError("participant endpoint is not a local driver pipe")
-            elif Path(address).parent != root or not Path(address).name.startswith("w-"):
-                raise ParticipantError("participant endpoint is not in the execution space")
+            else:
+                _validate_unix_address(address, root)
             self._connection = _connect(address, witness["family"])
             challenge = _receive(self._connection)
             nonce = challenge.get("nonce")

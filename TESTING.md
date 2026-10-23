@@ -64,7 +64,7 @@ for ordinary contained test runs.
 ## Targeted launch-maintenance acceptance
 
 Manually dispatch `windows-coverage-rotation.yml` with the candidate `ref` and
-`launch_maintenance: true` to run the Worktrees and Manager launch-maintenance
+`launch_maintenance: true` to run Worktrees, Manager and shared-driver launch-maintenance
 selections through the existing hardened, network-isolated Linux container
 wrapper. The resolved source SHA, exact selector, wrapper invocation and actual
 exit status are recorded in each execution artifact. The ordinary daily

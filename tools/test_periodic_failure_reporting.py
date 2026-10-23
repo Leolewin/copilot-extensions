@@ -105,11 +105,12 @@ def test_targeted_launch_selection_preserves_container_and_exact_scope_evidence(
     assert option["type"] == "boolean" and option["default"] is False
     linux = source["jobs"]["linux-full"]
     matrix = linux["strategy"]["matrix"]["plugin"]
-    assert """'["agent-worktrees","worktree-manager"]'""" in matrix
+    assert """'["agent-worktrees","worktree-manager","update-driver"]'""" in matrix
     selector = linux["env"]["TEST_SELECTOR"]
     for name in (
         "test_update_launch_cli", "test_update_stage", "test_launch_update_requests",
         "test_launch_preparation_progress", "test_launch_session_unwrap",
+        "test_core", "test_participant_transport",
     ):
         assert name in selector
     execute = next(step for step in linux["steps"] if step.get("id") == "full")

@@ -661,3 +661,28 @@ repository history.
   selector/outcome, and cannot file the full-portfolio failure tracker.
   Scheduled nine-plugin coverage and disabled Windows rotation are unchanged.
   Native Linux execution, final review and required PR CI remain pending.
+
+### 2026-10-22 - Linux qualification finds the native endpoint length limit
+
+- #7788 is reviewable. Its first targeted hardened-container run
+  [39911749036](https://github.com/ThomasMichon/copilot-extensions/actions/runs/39911749036)
+  executed the actual Linux selections but failed request participation:
+  the existing witness path under the synthetic queue root was 117 bytes,
+  exceeding Linux's 108-byte Unix-socket structure. The resulting interrupted
+  transaction correctly fenced later work; it was not cleared or replayed.
+  That run remains failed. Required PR guards and eligible units passed for
+  its exact source, independently of the missing native acceptance.
+- Fixed the canonical witness's address allocation, not the queue or execution
+  owner. Short legacy Unix paths stay unchanged. A long path uses an owned
+  private temporary directory within the native byte budget, preserving the
+  authenticated original root/request and cleaning the endpoint on close.
+  Clients verify private ownership/permissions, while unavailable short
+  temporary storage fails explicitly. Windows named-pipe behavior is unchanged.
+- Both existing consumer changefiles cover the shared driver. Tests cover
+  encoded-byte length, legacy compatibility, unavailable temporary paths,
+  listener-construction cleanup and live long-root participation/refusals.
+  The current Windows driver/routing slice passed 63 cases with nine explicit
+  native-platform skips and sandbox retirement; lint and module-size checks
+  passed. The next exact-source Linux run also selects the shared driver's
+  core and transport tests through the same hardened wrapper, not host-side
+  integration or an enlarged required-PR test portfolio.

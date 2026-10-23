@@ -1,5 +1,5 @@
 {
-  "comment": "Submit optional launch maintenance through the existing execution driver without joining acquisition or installers",
+  "comment": "Submit optional launch maintenance through the existing execution driver without joining acquisition or installers; preserve authenticated participation from long Unix installation paths",
   "changes": [
     {
       "plugin": "agent-worktrees",
