@@ -284,9 +284,9 @@
         },
         {
           "path": "plugins/agent-bridge/src/agent_bridge/worktree_native_resume.py",
-          "sha256": "5188f9cbc9063cc4b0289402ca8ad626a452d6f1c0b91381710e0c68528f3a60",
-          "semantic": true,
-          "non_semantic_reason": null
+          "sha256": "5423c1cf905ce651f9009c7d80c4e3647370468ca678f4fd75c9afafdd7c7659",
+          "semantic": false,
+          "non_semantic_reason": "Retained completion labels no longer preempt existing exact-native owner admission. HTTP routes, request/response schemas, capability floors, native identity, holder fences and no-recreation behavior are unchanged; focused ACP/CLI tests cover the implementation flow and owner refusals."
         },
         {
           "path": "plugins/agent-bridge/src/agent_bridge/routes/worktree_probe.py",
@@ -392,9 +392,9 @@
         },
         {
           "path": "plugins/agent-bridge/src/agent_bridge/local_cache_refresh.py",
-          "sha256": "e40a6816e9d75b5b956d848377b5be58a831f11bc86617c11b924cf2c68f511b",
+          "sha256": "856e680d0d88d1a95c86d1d7426b1bf708c6bf3492724d5499fe9584097490d2",
           "semantic": false,
-          "non_semantic_reason": "Source-only reused native process-group retirement primitive: authority commands use its identity-checked group cleanup; rendering behavior and HTTP wire shapes are unchanged."
+          "non_semantic_reason": "Implementation-only static preparation and process custody: internal results carry generation/reuse and count availability; owner-exit retirement is independent of pipe EOF. Missing POSIX birth custody explicitly fails before communication without signalling an unverified group. Darwin uses the required psutil native reader. HTTP fields, capability floors, wire fixtures and historical provenance are unchanged."
         },
         {
           "path": "plugins/agent-bridge/src/agent_bridge/db_schema.py",

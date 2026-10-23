@@ -8,12 +8,12 @@
       "fallback": {
         "destination": ".github/copilot/context-fallbacks/agent-dispatch/blocked-task-fallback.md",
         "renderedBytes": 2743,
-        "renderedSha256": "cb166d295bca918700f678fa2b207399c56501c5b6c13c96b09387815572801c"
+        "renderedSha256": "a2d1884f8a11494d4983864a5718243500e6a580641f1d32ef6fd0382f643b18"
       },
       "plugin": "agent-dispatch@copilot-extensions",
-      "pluginVersion": "0.18.64-dev2",
+      "pluginVersion": "0.18.65-dev1",
       "renderedBytes": 1325,
-      "renderedSha256": "6b5dee87f54c92cf870153963039f1f1f14e8dc8b818d9f89aecc46c9d7da1b7",
+      "renderedSha256": "d37a072eb46e4e751424814c299bf28317ca33d5fbb0fa34945d52f4b348f4c4",
       "sourceId": "blocked-task-fallback",
       "template": "instructions/blocked-task-fallback.instructions.md",
       "templateBytes": 1958,
@@ -27,12 +27,12 @@
       "fallback": {
         "destination": ".github/copilot/context-fallbacks/agent-dispatch/session-guidance.md",
         "renderedBytes": 1013,
-        "renderedSha256": "ee8918a1cd34da32d4d9625685abf61d7fef0f9fd900b16820db7f65cb5d0905"
+        "renderedSha256": "f44d1e847e8ccf6feb5109ae1294d86710c9633e6b3037bbc08e5eb392a2b6f5"
       },
       "plugin": "agent-dispatch@copilot-extensions",
-      "pluginVersion": "0.18.64-dev2",
+      "pluginVersion": "0.18.65-dev1",
       "renderedBytes": 1300,
-      "renderedSha256": "601eb1e91e3c435b0aed5b91d83397e0584a37b47c228066751ebcaccbe5c603",
+      "renderedSha256": "eeed894645bab7efba2ca485b129bdbf41c58740a759a616d65745c6ef20e72d",
       "sourceId": "session-guidance",
       "template": "instructions/session-guidance.instructions.md",
       "templateBytes": 244,
@@ -113,9 +113,9 @@
       "customizationKind": "instructions",
       "destination": ".github/instructions/customizing-copilot/local-cache-catchall.instructions.md",
       "plugin": "customizing-copilot@copilot-extensions",
-      "pluginVersion": "0.2.32-dev1",
+      "pluginVersion": "0.2.33-dev1",
       "renderedBytes": 4038,
-      "renderedSha256": "68a4824f1c2ab4ac1dafb4417713482370f904d4e89b9b2174d0ca989b47a12b",
+      "renderedSha256": "99dd3581e034ca1ca80d342c6d9908c5746698f58ab1645c0b951b97bea0d14d",
       "sourceId": "local-cache-catchall",
       "template": "instructions/local-cache-catchall.instructions.md",
       "templateBytes": 2970,
