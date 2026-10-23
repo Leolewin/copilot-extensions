@@ -593,3 +593,34 @@ repository history.
   generation retention, standalone dependency closure, desktop observation,
   native POSIX and actual maintenance consumers remain open. Both drafts stay
   held; no deployment authorization has changed.
+
+### 2026-10-22 - Publication intent implemented; changed candidate is unqualified
+
+- Source `97d9820907281f23dd367cfda3d8aab668d1ad47` adds installer-owned
+  credential-free publication intent before Scheduler mutation. Ordinary
+  admission refuses while recovery is pending. Explicit recovery restores the
+  original action, enabled state and configuration, preserves prior adoption
+  on repeat-install failure, revalidates metadata around native effects and
+  retains unresolved intent. It introduces no second execution lock, queue,
+  automatic replay or normal-installer adoption. Both generations still need
+  canonical retention; power-loss atomicity is not claimed.
+- The changed broker/protocol/probe suite passed 127 contained cases and
+  retired its sandbox; lint passed. The wider process run did not qualify:
+  three native cases reported unconfirmed process exit or a member appearing
+  after census. Those three passed in isolation; a larger 167-pass run still
+  failed deletion of its installed-console fixture executable. Neither result
+  is a full-suite pass or a waiver. These failures remain owned prerequisites.
+- Exact-head disposable run
+  [39886572524](https://github.com/ThomasMichon/copilot-extensions/actions/runs/39886572524)
+  failed the production protocol before its first custody transfer:
+  activation timed out at fixed phase `input-read`. The shared-ancestor
+  negative control and final owned cleanup passed. The new real
+  subprocess-death controls, placed after the two publication boundaries,
+  were not reached and are **not qualified**. The phase narrows the failing
+  interval; it does not establish why conversion/configuration selection
+  stalled. No unchanged retry or timeout increase is justified.
+- Keep both drafts held and the effort Active. The next action is bounded
+  evidence for this actual nested-caller activation stall and the native
+  retirement/fixture-cleanup failures, before installer integration or default
+  replacement. Historical native passes qualify only their recorded source.
+  No shared-host registration, update, restart or rollout occurred.
