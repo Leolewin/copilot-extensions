@@ -179,7 +179,6 @@ def test_foreign_or_missing_launch_directory_is_refused(directory_args):
 @pytest.mark.parametrize("prefix", [
     ["pwsh.exe", "-NoProfile", "-C", "copilot"],
     ["pwsh.exe", "-NoProfile", "-Command", r"C:\Tools\copilot.exe"],
-    ["bash", "-c", "copilot"],
 ])
 def test_custom_launch_preserves_shell_prefix_and_binds_copilot_directory(prefix, recovery):
     config = _config({"linux": prefix})
@@ -209,6 +208,49 @@ def test_unknown_launcher_prefix_is_not_parsed_as_copilot_arguments():
     ))
     assert command[:len(prefix)] == prefix
     assert "-C=/selected worktree" in command[len(prefix):]
+
+
+@pytest.mark.parametrize("flag", ["-c", "-lc"])
+@pytest.mark.parametrize("script", ["copilot", "exec copilot"])
+def test_bash_command_template_forwards_native_arguments(flag, script):
+    command = _inner_command(m._build_launch_cmd(
+        _config({"linux": ["bash", flag, script]}),
+        _args(["--resume=conversation"]), "/selected worktree",
+    ))
+    assert command[:4] == ["bash", flag, 'exec copilot "$@"', "copilot"]
+    assert command[4] == "--resume=conversation"
+    assert command.count("-C=/selected worktree") == 1
+    with pytest.raises(m.LaunchPreflightError, match="directory"):
+        m._build_launch_cmd(
+            _config({"linux": ["bash", flag, script]}),
+            _args(["-C", "/foreign"]), "/selected worktree",
+        )
+
+
+def test_bash_forwarding_template_preserves_its_existing_command_name():
+    prefix = ["bash", "-c", 'copilot "$@"', "configured-command-name"]
+    command = _inner_command(m._build_launch_cmd(
+        _config({"linux": prefix}), _args(["--resume=conversation"]), "/selected worktree",
+    ))
+    assert command[:len(prefix)] == prefix
+    assert command.count("-C=/selected worktree") == 1
+
+
+def test_bash_script_arguments_are_not_shell_command_options():
+    prefix = ["bash", "/custom/setup.sh", "-c", "script-option"]
+    command = _inner_command(m._build_launch_cmd(
+        _config({"linux": prefix}), _args([]), "/selected worktree",
+    ))
+    assert command[:len(prefix)] == prefix
+    assert "-C=/selected worktree" in command[len(prefix):]
+
+
+@pytest.mark.parametrize("script", ["copilot; echo done", "echo copilot"])
+def test_opaque_bash_command_template_requires_explicit_launcher_script(script):
+    with pytest.raises(m.LaunchPreflightError, match="launcher script"):
+        m._build_launch_cmd(
+            _config({"linux": ["bash", "-c", script]}), _args([]), "/selected worktree",
+        )
 
 
 @pytest.mark.parametrize("script,shell,flag", [
@@ -1277,6 +1319,42 @@ def test_custom_powershell_command_forwards_selected_directory(tmp_path):
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
     received = marker.read_text(encoding="utf-8")
+    assert f"-C={selected}" in received
+    assert "--resume=synthetic-anchor-origin" in received
+
+
+def test_bash_command_template_reaches_native_child(tmp_path):
+    from agent_procutil import no_window_kwargs
+
+    shell = shutil.which("bash")
+    if os.name == "nt" and (not shell or "system32" in shell.casefold()):
+        git = shutil.which("git")
+        candidate = Path(git).parent.parent / "bin" / "bash.exe" if git else None
+        shell = str(candidate) if candidate is not None and candidate.is_file() else None
+    if not shell or (os.name == "nt" and "system32" in shell.casefold()):
+        pytest.skip("a local Bash executable is unavailable")
+    selected = tmp_path / "selected worktree"
+    selected.mkdir()
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    marker = tmp_path / "native-argv.txt"
+    copilot = bin_dir / "copilot"
+    copilot.write_text(
+        '#!/bin/sh\nprintf "%s\\n" "$@" > "$NATIVE_ARGV_MARKER"\n', encoding="utf-8",
+    )
+    copilot.chmod(0o700)
+    command = _inner_command(m._build_launch_cmd(
+        _config({"linux": [shell, "-c", "copilot"]}),
+        _args(["--resume=synthetic-anchor-origin"]), str(selected),
+    ))
+    completed = subprocess.run(
+        command, cwd=selected,
+        env={**os.environ, "PATH": str(bin_dir) + os.pathsep + os.environ["PATH"],
+             "NATIVE_ARGV_MARKER": str(marker)},
+        capture_output=True, text=True, timeout=20, **no_window_kwargs(),
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    received = marker.read_text(encoding="utf-8").splitlines()
     assert f"-C={selected}" in received
     assert "--resume=synthetic-anchor-origin" in received
 

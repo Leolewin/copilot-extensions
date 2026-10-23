@@ -49,6 +49,10 @@ New native launches explicitly select the execution directory, including when
 resuming a conversation originally created in an anchor or another directory.
 A conflicting Copilot `-C` override is refused; a custom launcher's prefix
 options (such as PowerShell's `-C` command abbreviation) remain unchanged.
+Bash command-string templates using `copilot` or `exec copilot` are normalized
+to forward their arguments explicitly; existing direct `copilot "$@"` forms
+retain their command-name slot. Compound command strings require a launcher
+script instead of silently losing the selected-directory argument.
 Normalized setup passes the directory
 through its own named parameter and constructs Copilot's native `-C` argument
 only after shell parameter parsing, preserving Windows drive paths and spaces.

@@ -279,3 +279,23 @@ restarted or updated to force acceptance. No productive rollout is performed.
   presentation and guarded mapping retirement are now stated in their
   existing references. No new service, global mux setting, restart owner or
   graceful-cutover path was introduced.
+
+### 2026-10-22 - Bash command-string consumer correction
+
+- The next current-head review resolved all inline findings but identified
+  a remaining summary-level defect: Bash `-c` assigns trailing arguments to
+  positional parameters rather than automatically forwarding them to Copilot.
+  A matching launch-array assertion was therefore not execution proof.
+- Simple direct Copilot command strings now explicitly forward their native
+  arguments and preserve the command-name slot. Existing direct forwarding
+  forms retain their configured slot; opaque compound command strings fail
+  with an actionable launcher-script requirement instead of claiming directory
+  selection they cannot guarantee. Script arguments are not parsed as shell
+  options.
+- The new controls failed first in six cases. An actual installed local Git
+  Bash child then confirmed selected-directory and resume-argument forwarding.
+  This is the native Bash consumer boundary on Windows, not native POSIX
+  platform or real Copilot conversation qualification.
+- The complete launch portfolio passes 101 cases in 34.98 seconds, including
+  native PowerShell and local Git Bash controls. Touched-code lint, whitespace
+  and module ceilings pass; no test deadline or source ceiling changed.

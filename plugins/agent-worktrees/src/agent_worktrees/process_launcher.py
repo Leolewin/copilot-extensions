@@ -26,16 +26,56 @@ def _normalized_setup_index(command) -> int | None:
     return None
 
 
+def _bash_argument_boundary(command, passthrough_start: int, error_type):
+    if not command or PureWindowsPath(command[0]).stem.casefold() != "bash":
+        return command, None
+    command_flag = None
+    index = 1
+    while index < passthrough_start:
+        arg = command[index]
+        if not arg.startswith("-") or arg == "--":
+            break
+        if arg in {"-o", "-O", "--rcfile", "--init-file"}:
+            index += 2
+            continue
+        if not arg.startswith("--") and "c" in arg[1:]:
+            command_flag = index
+            break
+        index += 1
+    if command_flag is None:
+        return command, None
+    script_index = command_flag + 1
+    script = command[script_index].strip() if script_index < passthrough_start else ""
+    if script in {"copilot", "exec copilot"}:
+        command = [*command[:script_index], 'exec copilot "$@"', "copilot",
+                   *command[script_index + 1:]]
+    elif script in {'copilot "$@"', 'exec copilot "$@"'}:
+        if passthrough_start == script_index + 1:
+            command = [*command[:passthrough_start], "copilot", *command[passthrough_start:]]
+    else:
+        raise error_type(
+            "A Bash command-string launch must directly forward Copilot arguments; "
+            "use a launcher script for a compound command"
+        )
+    return command, script_index + 2
+
+
 def bind_execution_directory(command, work_dir: str, error_type, *, passthrough_start: int = 1):
     """Keep native resume in the selected workspace, not its historical cwd."""
     selected = os.path.normcase(os.path.abspath(work_dir))
+    command, bash_start = _bash_argument_boundary(command, passthrough_start, error_type)
     normalized = _normalized_setup_index(command)
     # Shell options belong to the launcher, not to the native Copilot argv.
-    index = normalized + 1 if normalized is not None else next(
-        (i + 1 for i, arg in enumerate(command[:passthrough_start])
-         if PureWindowsPath(arg).stem.casefold() == "copilot"),
-        passthrough_start,
-    )
+    if bash_start is not None:
+        index = bash_start
+    elif normalized is not None:
+        index = normalized + 1
+    else:
+        index = next(
+            (i + 1 for i, arg in enumerate(command[:passthrough_start])
+             if PureWindowsPath(arg).stem.casefold() == "copilot"),
+            passthrough_start,
+        )
     result = list(command[:index])
     while index < len(command):
         arg = command[index]
