@@ -12,19 +12,23 @@ import uuid
 
 def write_draft(base: Path, binding, task_id, values, *, pending: bool) -> Path:
     path = base if binding is None else base.with_stem(f"{base.stem}-{uuid.uuid4().hex}")
+    write_record(path, {
+        "task_id": task_id, "binding": binding, "values": values,
+        "pending": pending, "written_at_ns": time.time_ns(),
+    })
+    return path
+
+
+def write_record(path: Path, record: dict) -> None:
     temporary = None
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, delete=False) as stream:
             temporary = stream.name
-            json.dump({
-                "task_id": task_id, "binding": binding, "values": values,
-                "pending": pending, "written_at_ns": time.time_ns(),
-            }, stream)
+            json.dump(record, stream, allow_nan=False)
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)
-        return path
     finally:
         if temporary is not None:
             try:

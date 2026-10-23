@@ -261,6 +261,8 @@ def _parse_actions(
         kind = item.get("kind") or "command"
         if "draft" in item and kind != "form":
             raise ContractError(f"`{path}.draft` requires a form action")
+        if "request" in item and kind != "form":
+            raise ContractError(f"`{path}.request` requires a form action")
         if kind not in ("command", "internal", "form", "card"):
             raise ContractError(f"`{path}.kind` is unsupported")
         internal = None
@@ -292,6 +294,9 @@ def _parse_actions(
             try:
                 if item.get("draft") is not None:
                     form["draft"] = parse_draft(item["draft"])
+                if item.get("request") is not None:
+                    from .form_requests import parse_request
+                    form["request"] = parse_request(item["request"])
             except ValueError as exc:
                 raise ContractError(str(exc)) from exc
         elif kind == "card":

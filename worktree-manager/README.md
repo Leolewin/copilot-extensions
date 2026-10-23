@@ -1074,6 +1074,13 @@ plugin installer to write into Manager-owned state. See
 The contract also lets one available contribution designate the initial home
 pivot and lets providers declare view-scoped actions alongside row actions, so
 the Manager does not need a provider-specific home or "New" path.
+Forms may declare read-only request preparation and exact receipt commands.
+Manager retains the complete original request before sending it. **Retained
+responses** (`Ctrl+Shift+R` from any top-level view) remains reachable after
+restart, card/row removal or provider removal. It supports read-only inspection,
+explicit owner receipt checks and a separately confirmed identical retry;
+changed/unavailable providers leave recovery read-only. Local records and
+command observations are not proof of acceptance or answer consumption.
 Available pivot contributions appear beside Worktrees in the Picker. Their list
 commands run in background workers, so the UI opens before cross-process reads
 finish; each pivot keeps its own cached rows and loading/error/empty state, and
